@@ -83,6 +83,12 @@ ul.insights{margin:0;padding-left:18px}
 ul.insights li{margin:4px 0}
 .items img{width:20px;height:20px;border-radius:4px;margin-right:1px}
 .theme{margin-left:auto}
+ul.tips li{margin:8px 0}
+ul.tips .good{color:var(--text-2)}
+.cmp{position:relative;display:inline-block;width:110px;height:10px;vertical-align:middle;background:var(--surface-2);border-radius:5px}
+.cmp .band{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--muted) 35%,transparent);border-radius:5px}
+.cmp .med{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--muted)}
+.cmp .you{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;border:2px solid var(--surface)}
 @media (max-width:600px){.g2,.g3{grid-template-columns:1fr} .ranks{margin-left:0} input[name=riotId]{min-width:0;width:100%}}
 </style>
 </head>
@@ -101,7 +107,7 @@ ul.insights li{margin:4px 0}
       </label>
       <label>Fila
         <select name="queue">
-          <option value="">Todas</option><option value="420">Solo/Duo</option><option value="440">Flex</option>
+          <option value="">Todas</option><option value="420" selected>Solo/Duo</option><option value="440">Flex</option>
           <option value="400">Normal</option><option value="450">ARAM</option><option value="490">Partida Rápida</option>
         </select>
       </label>
@@ -131,6 +137,20 @@ ul.insights li{margin:4px 0}
     <div class="grid g2">
       <div class="card"><h2>Insights</h2><p class="sub">Gerado automaticamente com base nos filtros</p><ul class="insights" id="insights"></ul></div>
       <div class="card"><h2>Você nas vitórias × derrotas</h2><p class="sub">Média por jogo — o que muda quando você ganha</p><div id="wlTable"></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div style="display:flex;gap:10px;align-items:start;flex-wrap:wrap">
+          <div><h2>Você × Elite</h2><p class="sub" id="benchSub">Compare suas médias com jogadores Challenger e Grão-Mestre na mesma rota</p></div>
+          <button class="ghost" type="button" id="benchBtn" style="margin-left:auto">Gerar referência</button>
+        </div>
+        <div class="progress hidden" id="benchProg"><div></div></div>
+        <div class="grid g2" id="benchBody" style="margin-top:4px">
+          <div><h2 style="font-size:13.5px">O que melhorar</h2><ul class="insights tips" id="benchTips"></ul></div>
+          <div class="scroll" style="max-height:none" id="benchTable"></div>
+        </div>
+      </div>
     </div>
 
     <div class="grid">
@@ -219,6 +239,7 @@ async function poll(){
   $('csvBtn').classList.remove('hidden');
   setupFilters(); render();
   $('dash').classList.remove('hidden');
+  loadBench();
 }
 $('csvBtn').onclick = () => location.href = `/api/job/${JOB}/csv`;
 
@@ -242,6 +263,7 @@ function setupFilters(){
   const opts = (el, vals, label) => { el.innerHTML = `<option value="">${label}</option>` + vals.map(v=>`<option>${v}</option>`).join(''); };
   const byCount = key => group(all, r=>r[key]).sort((a,b)=>b.games-a.games).map(g=>g.key);
   opts($('fQueue'), byCount('queue'), 'Todas');
+  if (byCount('queue').includes('Ranqueada Solo/Duo')) $('fQueue').value = 'Ranqueada Solo/Duo';
   opts($('fChamp'), byCount('champion'), 'Todos');
   opts($('fRole'), byCount('role'), 'Todas');
   for (const id of ['fQueue','fChamp','fRole','fLast']) $(id).onchange = render;
@@ -460,6 +482,115 @@ function render(){
   const topDuo = duos.filter(d=>d.games>=3).sort((a,b)=>b.games-a.games)[0];
   if (topDuo) ins.push(`Duo mais frequente: <b>${topDuo.key}</b> — ${topDuo.games} jogos, ${fmt(topDuo.wr,0)}% de winrate.`);
   $('insights').innerHTML = ins.map(i=>`<li>${i}</li>`).join('') || '<li>Poucos jogos para gerar insights.</li>';
+  renderBench(rows);
+}
+
+// ---------- você × elite ----------
+let BENCH = null;
+// higher: maior é melhor · skip: rotas onde a métrica não faz sentido
+const BM = [
+  {k:'csMin', n:'CS/min', d:2, higher:true, skip:['Suporte'],
+   tip:(y,e)=>`<b>Farm:</b> você faz <b>${y}</b> CS/min; a elite faz <b>${e}</b>. Não deixe minions morrerem na rota, pegue waves laterais no meio do jogo e farme no caminho entre um objetivo e outro.`},
+  {k:'cs10', n:'CS aos 10 min', d:0, higher:true, skip:['Suporte','Selva'],
+   tip:(y,e)=>`<b>Fase de rotas:</b> <b>${y}</b> minions aos 10 min contra <b>${e}</b> da elite. Treine last hit no modo prática (meta: 80+ aos 10 min sem itens) e não troque dano quando uma wave grande estiver morrendo.`},
+  {k:'goldMin', n:'Ouro/min', d:0, higher:true,
+   tip:(y,e)=>`<b>Renda:</b> <b>${y}</b> de ouro/min contra <b>${e}</b>. Some farm, placas e objetivos: toda volta à base deveria render um item ou componente importante.`},
+  {k:'deaths', n:'Mortes', d:1, higher:false,
+   tip:(y,e)=>`<b>Mortes:</b> <b>${y}</b> por jogo contra <b>${e}</b> da elite. Antes de avançar, pergunte onde estão o caçador e o meio inimigo; sem visão do lado de lá, jogue recuado.`},
+  {k:'kp', n:'Part. em abates %', d:0, higher:true,
+   tip:(y,e)=>`<b>Presença no mapa:</b> participação em abates de <b>${y}%</b> contra <b>${e}%</b>. Olhe o minimapa a cada poucos segundos e chegue antes nas lutas por dragão, arauto e torres.`},
+  {k:'dmgMin', n:'Dano/min', d:0, higher:true,
+   tip:(y,e)=>`<b>Dano:</b> <b>${y}</b> de dano/min contra <b>${e}</b>. Procure trocas mais frequentes na rota e, nas lutas, fique em posição de bater o tempo todo sem se expor.`},
+  {k:'dmgShare', n:'% dano do time', d:1, higher:true,
+   tip:(y,e)=>`<b>Impacto nas lutas:</b> você causa <b>${y}%</b> do dano do time; a elite causa <b>${e}%</b>. Esteja presente nas lutas e acerte suas habilidades principais.`},
+  {k:'visionMin', n:'Visão/min', d:2, higher:true,
+   tip:(y,e)=>`<b>Visão:</b> placar de visão de <b>${y}</b>/min contra <b>${e}</b>. Use o trinket sempre que estiver carregado, coloque sentinelas antes dos objetivos e troque de trinket na hora certa.`},
+  {k:'controlWards', n:'Sentinelas de controle', d:1, higher:true,
+   tip:(y,e)=>`<b>Sentinelas de controle:</b> <b>${y}</b> por jogo contra <b>${e}</b>. Compre pelo menos uma a cada volta à base, é o item mais barato com maior impacto.`},
+  {k:'wardsKilled', n:'Sentinelas destruídas', d:1, higher:true,
+   tip:(y,e)=>`<b>Negar visão:</b> você destrói <b>${y}</b> sentinelas por jogo contra <b>${e}</b>. Use a Lente do Oráculo antes de dragão e barão e limpe a visão inimiga na sua selva.`},
+  {k:'turrets', n:'Torres (participação)', d:1, higher:true,
+   tip:(y,e)=>`<b>Objetivos:</b> você participa de <b>${y}</b> torres por jogo contra <b>${e}</b>. Converta abates e vantagens em placas e torres em vez de voltar para a base sem pressionar.`},
+  {k:'soloKills', n:'Abates solo', d:1, higher:true, skip:['Suporte'],
+   tip:(y,e)=>`<b>Agressividade na rota:</b> <b>${y}</b> abates solo por jogo contra <b>${e}</b>. Aprenda os níveis de poder do seu campeão (nível 2, 3 e 6) e puna quando o inimigo errar.`},
+];
+
+async function loadBench(){
+  BENCH = null;
+  try { const r = await fetch(`/api/benchmark?platform=${DATA.platform}`); if (r.ok) BENCH = await r.json(); } catch(e){}
+  renderBench(filtered());
+}
+
+$('benchBtn').onclick = async () => {
+  $('benchBtn').disabled = true; $('benchProg').classList.remove('hidden');
+  const r = await fetch('/api/benchmark/build', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({platform: DATA.platform})});
+  const id = (await r.json()).jobId;
+  const tick = async () => {
+    const j = await (await fetch(`/api/job/${id}`)).json();
+    $('benchSub').textContent = j.message + (j.total ? ` — ${j.progress}/${j.total}` : '') + ' (pode levar alguns minutos com a chave de desenvolvedor)';
+    $('benchProg').firstElementChild.style.width = j.total ? (100*j.progress/j.total)+'%' : '5%';
+    if (j.status === 'running') return setTimeout(tick, 1000);
+    $('benchBtn').disabled = false; $('benchProg').classList.add('hidden');
+    if (j.status === 'error') { $('benchSub').textContent = j.message; return; }
+    BENCH = j.result; renderBench(filtered());
+  };
+  tick();
+};
+
+function renderBench(allRows){
+  $('benchBtn').textContent = BENCH ? 'Atualizar referência' : 'Gerar referência';
+  if (!BENCH){
+    $('benchBody').classList.add('hidden');
+    if (!$('benchBtn').disabled) $('benchSub').textContent = 'Ainda não há base de referência para este servidor. Clique em "Gerar referência" para baixar partidas Solo/Duo recentes de jogadores Challenger e Grão-Mestre (leva alguns minutos, uma vez só).';
+    return;
+  }
+  $('benchBody').classList.remove('hidden');
+
+  // rota: a do filtro, senão a mais jogada
+  const role = $('fRole').value || group(allRows.filter(r=>r.role!=='—'), r=>r.role).sort((a,b)=>b.games-a.games)[0]?.key;
+  const rows = allRows.filter(r=>r.role===role);
+  const champ = $('fChamp').value;
+  const champRef = champ && BENCH.champs[`${role}|${champ}`];
+  const ref = champRef || BENCH.roles[role];
+  const built = new Date(BENCH.builtAt).toLocaleDateString('pt-BR');
+  const base = `Base: ${fmtInt(BENCH.games)} jogos de ${BENCH.matches} partidas Solo/Duo do topo do ${BENCH.platform.toUpperCase()} (gerada em ${built}).`;
+  if (!role || !ref || rows.length < 3){
+    $('benchSub').textContent = `${base} Poucos jogos seus${role ? ' como '+role : ''} para comparar. Mude os filtros.`;
+    $('benchTips').innerHTML = ''; $('benchTable').innerHTML = ''; return;
+  }
+  $('benchSub').textContent = `Comparando seus ${rows.length} jogos como ${role}${champRef ? ' de '+champ : ''} com ${fmtInt(ref.n)} jogos da elite${champRef ? ' com o mesmo campeão' : ' na mesma rota'}${!$('fRole').value ? ' (use o filtro Rota para trocar)' : ''}. ${base}`;
+
+  const res = BM.filter(m=>!(m.skip||[]).includes(role) && ref.metrics[m.k]).map(m=>{
+    const vals = rows.map(r=>r[m.k]).filter(v=>v!=null);
+    if (!vals.length) return null;
+    const you = vals.reduce((a,b)=>a+b,0)/vals.length;
+    const [p25,p50,p75] = ref.metrics[m.k];
+    const spread = Math.max(p75-p25, Math.abs(p50)*0.1, 0.01);
+    const z = (you-p50)/spread * (m.higher?1:-1); // < 0 = abaixo da elite
+    return {...m, you, p25, p50, p75, z};
+  }).filter(Boolean);
+
+  const sign = (m,v) => fmt(v,m.d);
+  const weak = res.filter(r=>r.z < -0.5).sort((a,b)=>a.z-b.z).slice(0,5);
+  const strong = res.filter(r=>r.z > 0.25).sort((a,b)=>b.z-a.z).slice(0,2);
+  $('benchTips').innerHTML =
+    weak.map(r=>`<li>${r.tip(sign(r,r.you), sign(r,r.p50))}</li>`).join('') +
+    strong.map(r=>`<li class="good">✅ Ponto forte: <b>${r.n}</b> (${sign(r,r.you)} contra ${sign(r,r.p50)} da elite). Continue assim.</li>`).join('') ||
+    '<li>Suas médias estão dentro da faixa da elite em todas as métricas.</li>';
+
+  table('benchTable', [
+    {k:'n', t:'Métrica'},
+    {k:'you', t:'Você', f:r=>`<b>${sign(r,r.you)}</b>`},
+    {k:'p50', t:'Elite', f:r=>sign(r,r.p50)},
+    {k:'p25', t:'Faixa elite', f:r=>`<span style="color:var(--muted)">${sign(r,r.higher?r.p25:r.p75)} – ${sign(r,r.higher?r.p75:r.p25)}</span>`},
+    {k:'z', t:'', f:r=>{
+      const lo = Math.min(r.you, r.p25 - (r.p75-r.p25)), hi = Math.max(r.you, r.p75 + (r.p75-r.p25));
+      const x = v => `${((v-lo)/((hi-lo)||1)*100).toFixed(1)}%`;
+      const col = r.z < -0.5 ? css('--loss') : css('--win');
+      return `<span class="cmp"><span class="band" style="left:${x(r.p25)};right:calc(100% - ${x(r.p75)})"></span><span class="med" style="left:${x(r.p50)}"></span><span class="you" style="left:${x(r.you)};background:${col}"></span></span>`;
+    }},
+  ], res, 'z', false);
 }
 </script>
 </body>

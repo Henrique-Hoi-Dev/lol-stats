@@ -110,6 +110,10 @@ class RiotClient:
                          f"/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top",
                          {"count": count})
 
+    def apex_league(self, tier: str, queue: str = "RANKED_SOLO_5x5"):
+        """tier: challenger | grandmaster | master"""
+        return self._get(self.platform, f"/lol/league/v4/{tier}leagues/by-queue/{queue}")
+
     def match_ids(self, puuid: str, count: int = 100, queue: int | None = None):
         """Pagina de 100 em 100 até `count`."""
         ids: list[str] = []

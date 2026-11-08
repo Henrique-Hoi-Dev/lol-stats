@@ -23,6 +23,7 @@ if _env.exists():
 
 from flask import Flask, Response, jsonify, render_template, request
 
+import benchmark
 from analysis import flatten_match, to_csv
 from riot import PLATFORMS, RiotClient, RiotError
 
@@ -121,6 +122,39 @@ def api_job(job_id):
     if job["status"] == "done":
         out["result"] = job["result"]
     return jsonify(out)
+
+
+def run_benchmark(job_id: str, platform: str):
+    job = JOBS[job_id]
+    try:
+        data = benchmark.build(platform, job=job)
+        job["result"], job["status"] = data, "done"
+        job["message"] = f"Referência pronta: {data['games']} jogos de {data['matches']} partidas"
+    except RiotError as e:
+        job["status"], job["message"] = "error", str(e)
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        job["status"], job["message"] = "error", f"Erro inesperado: {e}"
+
+
+@app.get("/api/benchmark")
+def api_benchmark():
+    data = benchmark.load(request.args.get("platform", "br1"))
+    return jsonify(data) if data else (jsonify({"message": "Referência ainda não gerada"}), 404)
+
+
+@app.post("/api/benchmark/build")
+def api_benchmark_build():
+    platform = (request.get_json(force=True) or {}).get("platform", "br1")
+    running = next((k for k, j in JOBS.items()
+                    if j.get("kind") == "bench" and j.get("platform") == platform and j["status"] == "running"), None)
+    if running:
+        return jsonify({"jobId": running})
+    job_id = uuid.uuid4().hex[:10]
+    JOBS[job_id] = {"status": "running", "progress": 0, "total": 0, "message": "Iniciando...",
+                    "kind": "bench", "platform": platform}
+    threading.Thread(target=run_benchmark, daemon=True, args=(job_id, platform)).start()
+    return jsonify({"jobId": job_id})
 
 
 @app.get("/api/job/<job_id>/csv")
