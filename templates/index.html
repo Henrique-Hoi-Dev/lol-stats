@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoL Stats</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f4f4f2; --surface:#fcfcfb; --surface-2:#f0efec; --border:#e2e1dc;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#8a8984; --grid:#e8e7e3;
+  --win:#2a78d6; --loss:#e34948; --accent:#2a78d6;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#111110; --surface:#1a1a19; --surface-2:#242422; --border:#2e2e2b;
+    --text:#f0efec; --text-2:#c3c2b7; --muted:#8a8984; --grid:#2a2a27;
+    --win:#3987e5; --loss:#e66767; --accent:#3987e5;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#111110; --surface:#1a1a19; --surface-2:#242422; --border:#2e2e2b;
+  --text:#f0efec; --text-2:#c3c2b7; --muted:#8a8984; --grid:#2a2a27;
+  --win:#3987e5; --loss:#e66767; --accent:#3987e5;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:20px;margin:0 0 14px;display:flex;align-items:center;gap:10px}
+h2{font-size:15px;margin:0 0 2px}
+.sub{color:var(--text-2);font-size:12.5px;margin:0 0 12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+form.search{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-2)}
+input,select,button{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text)}
+input[name=riotId]{min-width:220px}
+button{background:var(--accent);color:#fff;border:0;cursor:pointer;font-weight:600;padding:9px 16px}
+button.ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--border);font-weight:500}
+button:disabled{opacity:.5;cursor:default}
+.warn{background:#fab21922;border:1px solid #fab21966;padding:10px 12px;border-radius:8px;margin-top:10px;font-size:13px}
+.err{color:var(--loss);margin-top:10px}
+.progress{height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-top:12px}
+.progress>div{height:100%;background:var(--accent);width:0;transition:width .3s}
+.hidden{display:none!important}
+.grid{display:grid;gap:14px;margin-top:14px}
+.grid>*,.kpis>*{min-width:0}
+.scroll,#wlTable{overflow:auto}
+.g2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px}
+.kpi .l{font-size:12px;color:var(--text-2)}
+.kpi .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .d{font-size:12px;color:var(--muted)}
+.profile{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.profile img.icon{width:72px;height:72px;border-radius:14px;background:var(--surface-2)}
+.profile .name{font-size:20px;font-weight:700}
+.ranks{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto}
+.rank{background:var(--surface-2);border-radius:10px;padding:8px 12px;min-width:170px}
+.rank .q{font-size:11.5px;color:var(--text-2)}
+.rank .t{font-weight:650}
+.filters{display:flex;overflow-x:auto;flex-wrap:wrap;gap:8px;align-items:end;position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0}
+.chart{position:relative;height:260px}
+.chart.tall{height:360px}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+th{color:var(--text-2);font-weight:550;font-size:12px;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--surface)}
+th:first-child,td:first-child{text-align:left}
+td img{width:22px;height:22px;border-radius:5px;vertical-align:middle;margin-right:6px}
+.scroll{max-height:380px;overflow:auto}
+.pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11.5px;font-weight:600}
+.pill.w{background:color-mix(in srgb,var(--win) 18%,transparent);color:var(--text)}
+.pill.l{background:color-mix(in srgb,var(--loss) 18%,transparent);color:var(--text)}
+.wrbar{display:inline-block;width:60px;height:6px;border-radius:3px;background:var(--surface-2);vertical-align:middle;margin-left:6px;overflow:hidden}
+.wrbar>i{display:block;height:100%;background:var(--win)}
+ul.insights{margin:0;padding-left:18px}
+ul.insights li{margin:4px 0}
+.items img{width:20px;height:20px;border-radius:4px;margin-right:1px}
+.theme{margin-left:auto}
+@media (max-width:600px){.g2,.g3{grid-template-columns:1fr} .ranks{margin-left:0} input[name=riotId]{min-width:0;width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📊 LoL Stats <button class="ghost theme" id="themeBtn" type="button">◐ Tema</button></h1>
+
+  <div class="card">
+    <form class="search" id="searchForm">
+      <label>Riot ID (Nome#TAG)<input name="riotId" placeholder="Nome#BR1" required></label>
+      <label>Servidor
+        <select name="platform">{% for p in platforms %}<option {% if p=='br1' %}selected{% endif %}>{{p}}</option>{% endfor %}</select>
+      </label>
+      <label>Partidas
+        <select name="count"><option>20</option><option>50</option><option selected>100</option><option>200</option><option>500</option><option>1000</option></select>
+      </label>
+      <label>Fila
+        <select name="queue">
+          <option value="">Todas</option><option value="420">Solo/Duo</option><option value="440">Flex</option>
+          <option value="400">Normal</option><option value="450">ARAM</option><option value="490">Partida Rápida</option>
+        </select>
+      </label>
+      <button id="goBtn">Buscar</button>
+      <button class="ghost hidden" type="button" id="csvBtn">⬇ CSV</button>
+    </form>
+    {% if not has_key %}<div class="warn">⚠️ RIOT_API_KEY não definida. Pegue a sua em developer.riotgames.com e rode <code>export RIOT_API_KEY=RGAPI-...</code> antes de iniciar o servidor.</div>{% endif %}
+    <div class="sub" style="margin:10px 0 0">Chave de desenvolvedor: ~100 partidas a cada 2 min. Partidas já baixadas ficam em cache e carregam na hora.</div>
+    <div id="status" class="sub hidden" style="margin-top:10px"></div>
+    <div class="progress hidden" id="prog"><div></div></div>
+    <div class="err hidden" id="err"></div>
+  </div>
+
+  <div id="dash" class="hidden">
+    <div class="card" style="margin-top:14px"><div class="profile" id="profile"></div></div>
+
+    <div class="filters">
+      <label>Fila<select id="fQueue"></select></label>
+      <label>Campeão<select id="fChamp"></select></label>
+      <label>Rota<select id="fRole"></select></label>
+      <label>Últimas<select id="fLast"><option value="0">Todas</option><option>10</option><option>20</option><option>50</option><option>100</option></select></label>
+      <span class="sub" id="fInfo" style="margin:0 0 8px"></span>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid g2">
+      <div class="card"><h2>Insights</h2><p class="sub">Gerado automaticamente com base nos filtros</p><ul class="insights" id="insights"></ul></div>
+      <div class="card"><h2>Você nas vitórias × derrotas</h2><p class="sub">Média por jogo — o que muda quando você ganha</p><div id="wlTable"></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h2>Winrate ao longo do tempo</h2><p class="sub">Média móvel de 10 jogos e winrate acumulado (linha tracejada em 50%)</p><div class="chart"><canvas id="cTrend"></canvas></div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h2>Winrate por campeão</h2><p class="sub">Campeões com mais jogos (número de jogos no rótulo)</p><div class="chart tall"><canvas id="cChamp"></canvas></div></div>
+      <div class="card"><h2>Campeões</h2><p class="sub">Clique no cabeçalho para ordenar</p><div class="scroll" id="champTable"></div></div>
+    </div>
+
+    <div class="grid g3">
+      <div class="card"><h2>Por rota</h2><p class="sub">Winrate e nº de jogos</p><div class="chart"><canvas id="cRole"></canvas></div></div>
+      <div class="card"><h2>Por fila</h2><p class="sub">Winrate e nº de jogos</p><div class="chart"><canvas id="cQueue"></canvas></div></div>
+      <div class="card"><h2>Por lado do mapa</h2><p class="sub">Azul × Vermelho</p><div class="chart"><canvas id="cSide"></canvas></div></div>
+    </div>
+
+    <div class="grid g3">
+      <div class="card"><h2>Por horário</h2><p class="sub">Hora de início (seu fuso)</p><div class="chart"><canvas id="cHour"></canvas></div></div>
+      <div class="card"><h2>Por dia da semana</h2><p class="sub">Winrate e nº de jogos</p><div class="chart"><canvas id="cDow"></canvas></div></div>
+      <div class="card"><h2>Por duração</h2><p class="sub">Você é melhor no early ou no late?</p><div class="chart"><canvas id="cDur"></canvas></div></div>
+    </div>
+
+    <div class="grid g3">
+      <div class="card"><h2>KDA por jogo</h2><p class="sub">Linha = média móvel de 10</p><div class="chart"><canvas id="cKda"></canvas></div></div>
+      <div class="card"><h2>CS por minuto</h2><p class="sub">Linha = média móvel de 10</p><div class="chart"><canvas id="cCs"></canvas></div></div>
+      <div class="card"><h2>Dano por minuto</h2><p class="sub">Linha = média móvel de 10</p><div class="chart"><canvas id="cDmg"></canvas></div></div>
+    </div>
+
+    <div class="grid g3">
+      <div class="card"><h2>Duos frequentes</h2><p class="sub">Jogadores que estiveram no seu time 2+ vezes</p><div class="scroll" id="duoTable"></div></div>
+      <div class="card"><h2>Confrontos de rota</h2><p class="sub">Campeão inimigo na sua rota (2+ jogos)</p><div class="scroll" id="oppTable"></div></div>
+      <div class="card"><h2>Maestrias</h2><p class="sub">Top campeões por pontos</p><div class="scroll" id="mastTable"></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h2>Histórico de partidas</h2><p class="sub" id="histSub"></p><div class="scroll" style="max-height:520px" id="histTable"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- tema ----------
+const root = document.documentElement;
+try { const t = localStorage.getItem('theme'); if (t) root.dataset.theme = t; } catch(e){}
+document.getElementById('themeBtn').onclick = () => {
+  const dark = getComputedStyle(root).colorScheme.includes('dark');
+  root.dataset.theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('theme', root.dataset.theme); } catch(e){}
+  if (DATA) render();
+};
+const css = v => getComputedStyle(root).getPropertyValue(v).trim();
+
+// ---------- Data Dragon (ícones) ----------
+let DD = { v: null, byKey: {} };
+fetch('https://ddragon.leagueoflegends.com/api/versions.json').then(r=>r.json()).then(async vs=>{
+  DD.v = vs[0];
+  const c = await (await fetch(`https://ddragon.leagueoflegends.com/cdn/${DD.v}/data/pt_BR/champion.json`)).json();
+  for (const ch of Object.values(c.data)) DD.byKey[ch.key] = ch;
+  if (DATA) render();
+}).catch(()=>{});
+const champImg = n => DD.v && n ? `<img src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/champion/${n === 'FiddleSticks' ? 'Fiddlesticks' : n}.png" loading="lazy" onerror="this.remove()">` : '';
+const itemImg = id => DD.v && id ? `<img src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/item/${id}.png" loading="lazy" onerror="this.remove()">` : '';
+
+// ---------- busca ----------
+let DATA = null, JOB = null;
+const $ = id => document.getElementById(id);
+$('searchForm').onsubmit = async e => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  $('err').classList.add('hidden'); $('goBtn').disabled = true;
+  $('status').classList.remove('hidden'); $('prog').classList.remove('hidden');
+  const r = await fetch('/api/fetch', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(Object.fromEntries(f))});
+  JOB = (await r.json()).jobId;
+  poll();
+};
+async function poll(){
+  const j = await (await fetch(`/api/job/${JOB}`)).json();
+  $('status').textContent = j.message + (j.total ? ` — ${j.progress}/${j.total}` : '');
+  $('prog').firstElementChild.style.width = j.total ? (100*j.progress/j.total)+'%' : '5%';
+  if (j.status === 'running') return setTimeout(poll, 700);
+  $('goBtn').disabled = false; $('prog').classList.add('hidden');
+  if (j.status === 'error') { $('err').textContent = j.message; $('err').classList.remove('hidden'); return; }
+  DATA = j.result;
+  $('csvBtn').classList.remove('hidden');
+  setupFilters(); render();
+  $('dash').classList.remove('hidden');
+}
+$('csvBtn').onclick = () => location.href = `/api/job/${JOB}/csv`;
+
+// ---------- utilidades ----------
+const pct = (a,b) => b ? a/b*100 : 0;
+const avg = (rows, f) => rows.length ? rows.reduce((s,r)=>s+(typeof f==='function'?f(r):r[f]||0),0)/rows.length : 0;
+const fmt = (x,d=1) => Number.isFinite(x) ? x.toLocaleString('pt-BR',{maximumFractionDigits:d,minimumFractionDigits:d}) : '—';
+const fmtInt = x => Math.round(x).toLocaleString('pt-BR');
+const mmss = s => `${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,'0')}`;
+const kdaOf = rows => { const d = rows.reduce((s,r)=>s+r.deaths,0); return (rows.reduce((s,r)=>s+r.kills+r.assists,0)) / Math.max(d,1); };
+function group(rows, keyFn){
+  const m = new Map();
+  for (const r of rows){ const k = keyFn(r); if (k==null) continue; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }
+  return [...m].map(([key, rs]) => ({key, rows: rs, games: rs.length, wins: rs.filter(r=>r.win).length,
+    wr: pct(rs.filter(r=>r.win).length, rs.length), kda: kdaOf(rs)}));
+}
+const rolling = (arr, n) => arr.map((_,i)=>{ const s = arr.slice(Math.max(0,i-n+1), i+1); return s.reduce((a,b)=>a+b,0)/s.length; });
+
+function setupFilters(){
+  const all = DATA.matches.filter(r=>!r.remake);
+  const opts = (el, vals, label) => { el.innerHTML = `<option value="">${label}</option>` + vals.map(v=>`<option>${v}</option>`).join(''); };
+  const byCount = key => group(all, r=>r[key]).sort((a,b)=>b.games-a.games).map(g=>g.key);
+  opts($('fQueue'), byCount('queue'), 'Todas');
+  opts($('fChamp'), byCount('champion'), 'Todos');
+  opts($('fRole'), byCount('role'), 'Todas');
+  for (const id of ['fQueue','fChamp','fRole','fLast']) $(id).onchange = render;
+}
+function filtered(){
+  let rows = DATA.matches.filter(r=>!r.remake);
+  const q=$('fQueue').value, c=$('fChamp').value, ro=$('fRole').value, n=+$('fLast').value;
+  if (q) rows = rows.filter(r=>r.queue===q);
+  if (c) rows = rows.filter(r=>r.champion===c);
+  if (ro) rows = rows.filter(r=>r.role===ro);
+  if (n) rows = rows.slice(0,n);
+  return rows; // mais recente primeiro
+}
+
+// ---------- gráficos ----------
+const charts = {};
+function chart(id, cfg){
+  if (charts[id]) charts[id].destroy();
+  Chart.defaults.color = css('--text-2');
+  Chart.defaults.borderColor = css('--grid');
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  cfg.options = Object.assign({responsive:true, maintainAspectRatio:false, animation:false,
+    interaction:{mode:'index', intersect:false},
+    plugins:{legend:{display:false}, tooltip:{backgroundColor:css('--surface'), titleColor:css('--text'), bodyColor:css('--text-2'), borderColor:css('--border'), borderWidth:1, padding:10}}}, cfg.options||{});
+  charts[id] = new Chart($(id), cfg);
+}
+// linha de referência em 50%
+const fiftyLine = {id:'fifty', afterDatasetsDraw(c){
+  const o = c.options.plugins.fifty; if(!o) return;
+  const s = c.scales[o.axis||'y']; const {ctx, chartArea:a} = c; ctx.save();
+  ctx.strokeStyle = css('--muted'); ctx.setLineDash([4,4]); ctx.lineWidth = 1; ctx.beginPath();
+  if ((o.axis||'y')==='y'){ const y=s.getPixelForValue(50); ctx.moveTo(a.left,y); ctx.lineTo(a.right,y); }
+  else { const x=s.getPixelForValue(50); ctx.moveTo(x,a.top); ctx.lineTo(x,a.bottom); }
+  ctx.stroke(); ctx.restore(); }};
+Chart.register(fiftyLine);
+
+// barra de winrate (cor por resultado: acima de 50% = azul, abaixo = vermelho)
+function wrBar(id, groups, {horizontal=false, labelFn=g=>g.key}={}){
+  chart(id, {type:'bar', data:{labels: groups.map(labelFn), datasets:[{
+      data: groups.map(g=>g.wr), backgroundColor: groups.map(g=> g.wr>=50 ? css('--win') : css('--loss')),
+      borderRadius:4, borderSkipped:'start', maxBarThickness: 28, categoryPercentage:.8 }]},
+    options:{ indexAxis: horizontal?'y':'x',
+      scales:{ [horizontal?'x':'y']:{min:0,max:100,ticks:{callback:v=>v+'%'}, grid:{color:css('--grid')}},
+               [horizontal?'y':'x']:{grid:{display:false}} },
+      plugins:{ fifty:{axis: horizontal?'x':'y'}, legend:{display:false},
+        tooltip:{ callbacks:{ label: c => { const g = groups[c.dataIndex]; return ` ${fmt(g.wr)}% winrate — ${g.wins}V ${g.games-g.wins}D (${g.games} jogos) — KDA ${fmt(g.kda,2)}`; }}}}}});
+}
+
+function trendChart(id, rows, key, color){
+  const chron = [...rows].reverse(); const vals = chron.map(r=>r[key]);
+  chart(id, {type:'line', data:{labels: chron.map((_,i)=>i+1), datasets:[
+    {type:'scatter', label:'Jogo', data: vals.map((v,i)=>({x:i+1,y:v})), pointRadius:3, pointHoverRadius:5,
+     backgroundColor: chron.map(r=> r.win? css('--win')+'99' : css('--loss')+'99'), borderWidth:0},
+    {label:'Média móvel 10', data: rolling(vals,10), borderColor: color, borderWidth:2, pointRadius:0, tension:.3}]},
+    options:{ scales:{x:{type:'linear', grid:{display:false}, ticks:{maxTicksLimit:8}, title:{display:true,text:'jogos (antigo → recente)'}}, y:{beginAtZero:true}},
+      plugins:{ tooltip:{ callbacks:{ title: c => { const r = chron[c[0].dataIndex]; return `${r.champion} — ${r.win?'Vitória':'Derrota'} — ${new Date(r.ts).toLocaleDateString('pt-BR')}`; },
+        label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y,2)}` }}}}});
+}
+
+// ---------- tabelas ----------
+function table(el, cols, rows, sortKey, desc=true){
+  const host = $(el); let sk = sortKey, sd = desc;
+  const draw = () => {
+    const sorted = [...rows].sort((a,b)=>{ const x=a[sk], y=b[sk]; return (x>y?1:x<y?-1:0)*(sd?-1:1); });
+    host.innerHTML = `<table><thead><tr>${cols.map(c=>`<th data-k="${c.k}">${c.t}${c.k===sk?(sd?' ↓':' ↑'):''}</th>`).join('')}</tr></thead><tbody>${
+      sorted.map(r=>`<tr>${cols.map(c=>`<td>${c.f?c.f(r):r[c.k]}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--muted)">Sem dados</td></tr>`}</tbody></table>`;
+    host.querySelectorAll('th').forEach(th => th.onclick = () => { const k = th.dataset.k; if (k===sk) sd=!sd; else {sk=k; sd=true;} draw(); });
+  };
+  draw();
+}
+const wrCell = r => `${fmt(r.wr,0)}%<span class="wrbar"><i style="width:${r.wr}%"></i></span>`;
+
+// ---------- render ----------
+function render(){
+  const rows = filtered();
+  const wins = rows.filter(r=>r.win), losses = rows.filter(r=>!r.win);
+  $('fInfo').textContent = `${rows.length} jogos (remakes excluídos)`;
+
+  // perfil
+  const a = DATA.account, s = DATA.summoner;
+  const qName = {RANKED_SOLO_5x5:'Solo/Duo', RANKED_FLEX_SR:'Flex'};
+  $('profile').innerHTML = `
+    ${DD.v ? `<img class="icon" src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/profileicon/${s.profileIconId}.png" onerror="this.remove()">` : ''}
+    <div><div class="name">${a.gameName}<span style="color:var(--muted)">#${a.tagLine}</span></div>
+    <div class="sub" style="margin:0">Nível ${s.summonerLevel} · ${DATA.platform.toUpperCase()} · ${DATA.matches.length} partidas baixadas</div></div>
+    <div class="ranks">${(DATA.league||[]).filter(l=>qName[l.queueType]).map(l=>`
+      <div class="rank"><div class="q">${qName[l.queueType]}</div>
+      <div class="t">${l.tier} ${['MASTER','GRANDMASTER','CHALLENGER'].includes(l.tier)?'':l.rank} · ${l.leaguePoints} PDL</div>
+      <div class="sub" style="margin:0">${l.wins}V ${l.losses}D · ${fmt(pct(l.wins,l.wins+l.losses),1)}%</div></div>`).join('') || '<div class="rank"><div class="q">Ranqueada</div><div class="t">Sem elo</div></div>'}</div>`;
+
+  // KPIs
+  const totalMin = rows.reduce((t,r)=>t+r.duration,0)/60;
+  const k = [
+    ['Jogos', rows.length, `${wins.length}V ${losses.length}D`],
+    ['Winrate', fmt(pct(wins.length, rows.length))+'%', ''],
+    ['KDA', fmt(kdaOf(rows),2), `${fmt(avg(rows,'kills'))} / ${fmt(avg(rows,'deaths'))} / ${fmt(avg(rows,'assists'))}`],
+    ['Part. em abates', fmt(avg(rows,'kp'))+'%', ''],
+    ['CS/min', fmt(avg(rows,'csMin')), `${fmtInt(avg(rows,'cs'))} CS por jogo`],
+    ['Dano/min', fmtInt(avg(rows,'dmgMin')), `${fmt(avg(rows,'dmgShare'))}% do dano do time`],
+    ['Ouro/min', fmtInt(avg(rows,'goldMin')), ''],
+    ['Visão/min', fmt(avg(rows,'visionMin'),2), `${fmt(avg(rows,'controlWards'))} sentinelas de controle`],
+    ['Duração média', mmss(avg(rows,'duration')), `${fmtInt(totalMin/60)}h jogadas`],
+    ['Multikills', rows.reduce((t,r)=>t+r.penta,0)+' penta', `${rows.reduce((t,r)=>t+r.quadra,0)} quadra · ${rows.reduce((t,r)=>t+r.triple,0)} triple`],
+  ];
+  $('kpis').innerHTML = k.map(([l,v,d])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d||'&nbsp;'}</div></div>`).join('');
+
+  // vitórias x derrotas
+  const wl = [
+    ['KDA', r=>kdaOf(r), 2], ['Abates', r=>avg(r,'kills'), 1], ['Mortes', r=>avg(r,'deaths'), 1], ['Assistências', r=>avg(r,'assists'),1],
+    ['Part. abates %', r=>avg(r,'kp'),1], ['CS/min', r=>avg(r,'csMin'),2], ['CS aos 10 min', r=>avg(r.filter(x=>x.cs10!=null),'cs10'),1],
+    ['Dano/min', r=>avg(r,'dmgMin'),0], ['% dano do time', r=>avg(r,'dmgShare'),1], ['Visão/min', r=>avg(r,'visionMin'),2],
+    ['Ouro vs oponente', r=>avg(r.filter(x=>x.goldDiffOpp!=null),'goldDiffOpp'),0], ['First blood %', r=>pct(r.filter(x=>x.firstBlood).length, r.length),0],
+    ['Tempo morto (s)', r=>avg(r,'timeDead'),0],
+  ];
+  $('wlTable').innerHTML = `<table><thead><tr><th>Métrica</th><th>Vitórias</th><th>Derrotas</th><th>Diferença</th></tr></thead><tbody>${
+    wl.map(([n,f,d])=>{ const w=f(wins), l=f(losses); return `<tr><td>${n}</td><td>${fmt(w,d)}</td><td>${fmt(l,d)}</td><td>${(w-l>=0?'+':'')+fmt(w-l,d)}</td></tr>`; }).join('')}</tbody></table>`;
+
+  // tendência de winrate
+  const chron = [...rows].reverse();
+  const winsArr = chron.map(r=>r.win?100:0);
+  let acc=0; const cum = winsArr.map((v,i)=> (acc+=v)/(i+1));
+  chart('cTrend', {type:'line', data:{labels: chron.map(r=>new Date(r.ts).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})), datasets:[
+      {label:'Média móvel (10 jogos)', data: rolling(winsArr,10), borderColor:css('--s1'), borderWidth:2, pointRadius:0, tension:.3},
+      {label:'Acumulado', data: cum, borderColor:css('--s2'), borderWidth:2, pointRadius:0, tension:.3}]},
+    options:{ scales:{ y:{min:0,max:100,ticks:{callback:v=>v+'%'}}, x:{grid:{display:false}, ticks:{maxTicksLimit:12}} },
+      plugins:{ fifty:{}, legend:{display:true, position:'top', align:'end', labels:{boxWidth:12, boxHeight:2}},
+        tooltip:{ callbacks:{ title: c => { const r = chron[c[0].dataIndex]; return `Jogo ${c[0].dataIndex+1}: ${r.champion} — ${r.win?'Vitória':'Derrota'}`; }, label: c=>` ${c.dataset.label}: ${fmt(c.parsed.y)}%` }}}}});
+
+  // campeões
+  const champs = group(rows, r=>r.champion).sort((a,b)=>b.games-a.games);
+  const topC = champs.slice(0,12);
+  wrBar('cChamp', topC, {horizontal:true, labelFn:g=>`${g.key} (${g.games})`});
+  table('champTable', [
+    {k:'key', t:'Campeão', f:r=>champImg(r.key)+r.key}, {k:'games', t:'Jogos'}, {k:'wr', t:'Winrate', f:wrCell},
+    {k:'kda', t:'KDA', f:r=>fmt(r.kda,2)}, {k:'csMin', t:'CS/min', f:r=>fmt(r.csMin)}, {k:'dmgMin', t:'Dano/min', f:r=>fmtInt(r.dmgMin)}, {k:'kp', t:'KP%', f:r=>fmt(r.kp,0)}
+  ], champs.map(c=>({...c, csMin:avg(c.rows,'csMin'), dmgMin:avg(c.rows,'dmgMin'), kp:avg(c.rows,'kp')})), 'games');
+
+  // rota / fila / lado
+  const roleOrder = ['Top','Selva','Meio','Atirador','Suporte','—'];
+  wrBar('cRole', group(rows, r=>r.role).sort((a,b)=>roleOrder.indexOf(a.key)-roleOrder.indexOf(b.key)), {labelFn:g=>[g.key, `${g.games} jogos`]});
+  wrBar('cQueue', group(rows, r=>r.queue).sort((a,b)=>b.games-a.games), {labelFn:g=>[g.key.replace('Ranqueada ',''), `${g.games} jogos`]});
+  wrBar('cSide', group(rows, r=>r.side).sort((a,b)=>a.key.localeCompare(b.key)), {labelFn:g=>[g.key, `${g.games} jogos`]});
+
+  // horário / dia / duração
+  const hourBuckets = ['00–04','04–08','08–12','12–16','16–20','20–24'];
+  const byHour = group(rows, r=>hourBuckets[Math.floor(new Date(r.ts).getHours()/4)]).sort((a,b)=>hourBuckets.indexOf(a.key)-hourBuckets.indexOf(b.key));
+  wrBar('cHour', byHour, {labelFn:g=>[g.key+'h', `${g.games}`]});
+  const dows = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  wrBar('cDow', group(rows, r=>new Date(r.ts).getDay()).sort((a,b)=>a.key-b.key), {labelFn:g=>[dows[g.key], `${g.games}`]});
+  const durB = [[0,20,'<20'],[20,25,'20–25'],[25,30,'25–30'],[30,35,'30–35'],[35,99,'35+']];
+  const byDur = group(rows, r=>{ const m=r.duration/60; return durB.findIndex(b=>m>=b[0]&&m<b[1]); }).sort((a,b)=>a.key-b.key);
+  wrBar('cDur', byDur, {labelFn:g=>[durB[g.key][2]+' min', `${g.games}`]});
+
+  // tendências
+  trendChart('cKda', rows, 'kda', css('--s1'));
+  trendChart('cCs', rows, 'csMin', css('--s3'));
+  trendChart('cDmg', rows, 'dmgMin', css('--s2'));
+
+  // duos
+  const mates = new Map();
+  for (const r of rows) for (const t of r.teammates){
+    if(!mates.has(t.puuid)) mates.set(t.puuid, {name:t.name, rows:[]}); mates.get(t.puuid).rows.push(r); }
+  const duos = [...mates.values()].filter(m=>m.rows.length>=2).map(m=>({key:m.name, games:m.rows.length, wins:m.rows.filter(r=>r.win).length, wr:pct(m.rows.filter(r=>r.win).length, m.rows.length)}));
+  table('duoTable', [{k:'key',t:'Jogador'},{k:'games',t:'Jogos'},{k:'wr',t:'Winrate',f:wrCell}], duos, 'games');
+
+  const opps = group(rows.filter(r=>r.opponent), r=>r.opponent).filter(g=>g.games>=2).map(g=>({...g, gd: avg(g.rows,'goldDiffOpp')}));
+  table('oppTable', [{k:'key',t:'Contra',f:r=>champImg(r.key)+r.key},{k:'games',t:'Jogos'},{k:'wr',t:'Winrate',f:wrCell},{k:'gd',t:'Ouro ±',f:r=>(r.gd>=0?'+':'')+fmtInt(r.gd)}], opps, 'games');
+
+  table('mastTable', [
+    {k:'name',t:'Campeão',f:r=>champImg(r.img)+r.name},{k:'championLevel',t:'Nível'},{k:'championPoints',t:'Pontos',f:r=>fmtInt(r.championPoints)},
+    {k:'lastPlayTime',t:'Último jogo',f:r=>new Date(r.lastPlayTime).toLocaleDateString('pt-BR')}],
+    (DATA.mastery||[]).map(m=>{ const c = DD.byKey[m.championId]; return {...m, name: c ? c.name : '#'+m.championId, img: c ? c.id : null}; }), 'championPoints');
+
+  // histórico
+  $('histSub').textContent = `${rows.length} partidas — mais recentes primeiro`;
+  table('histTable', [
+    {k:'ts',t:'Data',f:r=>new Date(r.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})},
+    {k:'win',t:'Resultado',f:r=>r.win?'<span class="pill w">Vitória</span>':'<span class="pill l">Derrota</span>'},
+    {k:'champion',t:'Campeão',f:r=>`<span style="display:inline-flex;align-items:center">${champImg(r.champion)}${r.champion}</span>`},
+    {k:'queue',t:'Fila'},{k:'role',t:'Rota'},
+    {k:'kda',t:'K / D / A',f:r=>`${r.kills} / ${r.deaths} / ${r.assists} <span style="color:var(--muted)">(${fmt(r.kda,2)})</span>`},
+    {k:'cs',t:'CS',f:r=>`${r.cs} <span style="color:var(--muted)">(${fmt(r.csMin)})</span>`},
+    {k:'dmg',t:'Dano',f:r=>fmtInt(r.dmg)},{k:'kp',t:'KP%',f:r=>fmt(r.kp,0)},{k:'vision',t:'Visão'},
+    {k:'duration',t:'Duração',f:r=>mmss(r.duration)},
+    {k:'opponent',t:'Contra',f:r=>r.opponent||'—'},
+    {k:'items',t:'Itens',f:r=>`<span class="items">${r.items.filter(Boolean).map(itemImg).join('')}</span>`},
+  ], rows, 'ts');
+
+  // insights
+  const ins = [];
+  const MIN = Math.max(3, Math.round(rows.length*0.05));
+  const ok = champs.filter(c=>c.games>=MIN);
+  if (ok.length){
+    const best = [...ok].sort((a,b)=>b.wr-a.wr)[0], worst = [...ok].sort((a,b)=>a.wr-b.wr)[0];
+    ins.push(`Melhor campeão (${MIN}+ jogos): <b>${best.key}</b> com ${fmt(best.wr,0)}% em ${best.games} jogos.`);
+    if (worst.key!==best.key) ins.push(`Pior campeão: <b>${worst.key}</b> com ${fmt(worst.wr,0)}% em ${worst.games} jogos.`);
+  }
+  if (champs[0]) ins.push(`Campeão mais jogado: <b>${champs[0].key}</b> (${fmt(pct(champs[0].games, rows.length),0)}% dos jogos).`);
+  const roles = group(rows, r=>r.role).filter(g=>g.games>=MIN).sort((a,b)=>b.wr-a.wr);
+  if (roles.length>1) ins.push(`Melhor rota: <b>${roles[0].key}</b> (${fmt(roles[0].wr,0)}%) · pior: <b>${roles.at(-1).key}</b> (${fmt(roles.at(-1).wr,0)}%).`);
+  const hours = byHour.filter(g=>g.games>=MIN).sort((a,b)=>b.wr-a.wr);
+  if (hours.length>1) ins.push(`Você rende mais das <b>${hours[0].key}h</b> (${fmt(hours[0].wr,0)}%) e menos das <b>${hours.at(-1).key}h</b> (${fmt(hours.at(-1).wr,0)}%).`);
+  const durs = byDur.filter(g=>g.games>=MIN).sort((a,b)=>b.wr-a.wr);
+  if (durs.length>1) ins.push(`Jogos de <b>${durB[durs[0].key][2]} min</b> são seus melhores (${fmt(durs[0].wr,0)}%); de <b>${durB[durs.at(-1).key][2]} min</b> os piores (${fmt(durs.at(-1).wr,0)}%).`);
+  const dDeath = avg(losses,'deaths') - avg(wins,'deaths');
+  if (wins.length && losses.length) ins.push(`Nas derrotas você morre <b>${fmt(dDeath)}</b> vezes a mais por jogo, e faz ${fmt(avg(wins,'csMin')-avg(losses,'csMin'),2)} CS/min a menos.`);
+  // sequências
+  let streak=0, maxW=0, maxL=0, cur=0, curType=null;
+  for (const r of chron){ if (r.win===curType) cur++; else {cur=1; curType=r.win;} if (curType) maxW=Math.max(maxW,cur); else maxL=Math.max(maxL,cur); }
+  if (rows.length){ let s=0; const t=rows[0].win; for (const r of rows){ if(r.win===t) s++; else break; } streak = s;
+    ins.push(`Sequência atual: <b>${streak} ${rows[0].win?'vitória(s)':'derrota(s)'}</b>. Maior sequência: ${maxW} vitórias / ${maxL} derrotas.`); }
+  // tilt: winrate após derrota vs após vitória
+  const afterL = [], afterW = [];
+  for (let i=1;i<chron.length;i++){ const gap = chron[i].ts - chron[i-1].ts; if (gap > 3*3600e3) continue; (chron[i-1].win?afterW:afterL).push(chron[i].win); }
+  if (afterL.length>=5 && afterW.length>=5) ins.push(`Na mesma sessão: depois de uma derrota você ganha <b>${fmt(pct(afterL.filter(Boolean).length, afterL.length),0)}%</b>; depois de uma vitória, <b>${fmt(pct(afterW.filter(Boolean).length, afterW.length),0)}%</b>.`);
+  const topDuo = duos.filter(d=>d.games>=3).sort((a,b)=>b.games-a.games)[0];
+  if (topDuo) ins.push(`Duo mais frequente: <b>${topDuo.key}</b> — ${topDuo.games} jogos, ${fmt(topDuo.wr,0)}% de winrate.`);
+  $('insights').innerHTML = ins.map(i=>`<li>${i}</li>`).join('') || '<li>Poucos jogos para gerar insights.</li>';
+}
+</script>
+</body>
+</html>
