@@ -5,96 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LoL Stats</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<style>
-:root{
-  color-scheme: light;
-  --bg:#f4f4f2; --surface:#fcfcfb; --surface-2:#f0efec; --border:#e2e1dc;
-  --text:#0b0b0b; --text-2:#52514e; --muted:#8a8984; --grid:#e8e7e3;
-  --win:#2a78d6; --loss:#e34948; --accent:#2a78d6;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4;
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    color-scheme: dark;
-    --bg:#111110; --surface:#1a1a19; --surface-2:#242422; --border:#2e2e2b;
-    --text:#f0efec; --text-2:#c3c2b7; --muted:#8a8984; --grid:#2a2a27;
-    --win:#3987e5; --loss:#e66767; --accent:#3987e5;
-    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
-  }
-}
-:root[data-theme="dark"]{
-  color-scheme: dark;
-  --bg:#111110; --surface:#1a1a19; --surface-2:#242422; --border:#2e2e2b;
-  --text:#f0efec; --text-2:#c3c2b7; --muted:#8a8984; --grid:#2a2a27;
-  --win:#3987e5; --loss:#e66767; --accent:#3987e5;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
-}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:1280px;margin:0 auto;padding:20px 16px 60px}
-h1{font-size:20px;margin:0 0 14px;display:flex;align-items:center;gap:10px}
-h2{font-size:15px;margin:0 0 2px}
-.sub{color:var(--text-2);font-size:12.5px;margin:0 0 12px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
-form.search{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
-label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-2)}
-input,select,button{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text)}
-input[name=riotId]{min-width:220px}
-button{background:var(--accent);color:#fff;border:0;cursor:pointer;font-weight:600;padding:9px 16px}
-button.ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--border);font-weight:500}
-button:disabled{opacity:.5;cursor:default}
-.warn{background:#fab21922;border:1px solid #fab21966;padding:10px 12px;border-radius:8px;margin-top:10px;font-size:13px}
-.err{color:var(--loss);margin-top:10px}
-.progress{height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-top:12px}
-.progress>div{height:100%;background:var(--accent);width:0;transition:width .3s}
-.hidden{display:none!important}
-.grid{display:grid;gap:14px;margin-top:14px}
-.grid>*,.kpis>*{min-width:0}
-.scroll,#wlTable{overflow:auto}
-.g2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
-.g3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
-.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px}
-.kpi .l{font-size:12px;color:var(--text-2)}
-.kpi .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;margin-top:2px}
-.kpi .d{font-size:12px;color:var(--muted)}
-.profile{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
-.profile img.icon{width:72px;height:72px;border-radius:14px;background:var(--surface-2)}
-.profile .name{font-size:20px;font-weight:700}
-.ranks{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto}
-.rank{background:var(--surface-2);border-radius:10px;padding:8px 12px;min-width:170px}
-.rank .q{font-size:11.5px;color:var(--text-2)}
-.rank .t{font-weight:650}
-.filters{display:flex;overflow-x:auto;flex-wrap:wrap;gap:8px;align-items:end;position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0}
-.chart{position:relative;height:260px}
-.chart.tall{height:360px}
-table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
-th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
-th{color:var(--text-2);font-weight:550;font-size:12px;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--surface)}
-th:first-child,td:first-child{text-align:left}
-td img{width:22px;height:22px;border-radius:5px;vertical-align:middle;margin-right:6px}
-.scroll{max-height:380px;overflow:auto}
-.pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11.5px;font-weight:600}
-.pill.w{background:color-mix(in srgb,var(--win) 18%,transparent);color:var(--text)}
-.pill.l{background:color-mix(in srgb,var(--loss) 18%,transparent);color:var(--text)}
-.wrbar{display:inline-block;width:60px;height:6px;border-radius:3px;background:var(--surface-2);vertical-align:middle;margin-left:6px;overflow:hidden}
-.wrbar>i{display:block;height:100%;background:var(--win)}
-ul.insights{margin:0;padding-left:18px}
-ul.insights li{margin:4px 0}
-.items img{width:20px;height:20px;border-radius:4px;margin-right:1px}
-.theme{margin-left:auto}
-ul.tips li{margin:8px 0}
-ul.tips .good{color:var(--text-2)}
-.cmp{position:relative;display:inline-block;width:110px;height:10px;vertical-align:middle;background:var(--surface-2);border-radius:5px}
-.cmp .band{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--muted) 35%,transparent);border-radius:5px}
-.cmp .med{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--muted)}
-.cmp .you{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;border:2px solid var(--surface)}
-@media (max-width:600px){.g2,.g3{grid-template-columns:1fr} .ranks{margin-left:0} input[name=riotId]{min-width:0;width:100%}}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <div class="wrap">
-  <h1>📊 LoL Stats <button class="ghost theme" id="themeBtn" type="button">◐ Tema</button></h1>
+  <h1>📊 LoL Stats
+    <nav class="nav"><a class="on" href="/">Histórico</a><a href="/partida">Partida</a></nav>
+    <button class="ghost theme" id="themeBtn" type="button">◐ Tema</button></h1>
 
   <div class="card">
     <form class="search" id="searchForm">
@@ -111,6 +28,8 @@ ul.tips .good{color:var(--text-2)}
           <option value="400">Normal</option><option value="450">ARAM</option><option value="490">Partida Rápida</option>
         </select>
       </label>
+      <label style="flex-direction:row;align-items:center;gap:6px;padding-bottom:9px" title="Ouro/CS contra o oponente aos 10 e 15 min, mapa de mortes e tempo do 1º item. Baixa 1 arquivo a mais por partida.">
+        <input type="checkbox" name="timeline" checked style="padding:0;margin:0"> Linha do tempo <span style="color:var(--muted)">(mais lento na 1ª vez)</span></label>
       <button id="goBtn">Buscar</button>
       <button class="ghost hidden" type="button" id="csvBtn">⬇ CSV</button>
     </form>
@@ -142,15 +61,36 @@ ul.tips .good{color:var(--text-2)}
     <div class="grid">
       <div class="card">
         <div style="display:flex;gap:10px;align-items:start;flex-wrap:wrap">
-          <div><h2>Você × Elite</h2><p class="sub" id="benchSub">Compare suas médias com jogadores Challenger e Grão-Mestre na mesma rota</p></div>
-          <button class="ghost" type="button" id="benchBtn" style="margin-left:auto">Gerar referência</button>
+          <div style="flex:1;min-width:260px"><h2>Você × Seu elo × Elo acima × Elite</h2><p class="sub" id="benchSub">Compare suas médias com jogadores do seu elo, do elo seguinte e do topo do servidor, na mesma rota</p></div>
+          <label style="flex-direction:row;align-items:center;gap:6px">Seu elo<select id="fTier"></select></label>
+          <button class="ghost" type="button" id="benchBtn">Gerar bases</button>
         </div>
+        <p class="sub hidden" id="benchClimb" style="margin:8px 0 0"></p>
         <div class="progress hidden" id="benchProg"><div></div></div>
         <div class="grid g2" id="benchBody" style="margin-top:4px">
           <div><h2 style="font-size:13.5px">O que melhorar</h2><ul class="insights tips" id="benchTips"></ul></div>
-          <div class="scroll" style="max-height:none" id="benchTable"></div>
+          <div><div class="scroll" style="max-height:none" id="benchTable"></div><div class="legend" id="benchLegend"></div></div>
         </div>
       </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h2>Recomendação de campeões</h2><p class="sub" id="champRecSub"></p><ul class="insights tips" id="champRecTips"></ul><div class="scroll" id="champRecs"></div></div>
+      <div class="card"><h2 id="buildTitle">Build da elite</h2><p class="sub" id="buildSub"></p><div id="buildBody"></div></div>
+    </div>
+
+    <div id="tlSection">
+      <div class="grid g3">
+        <div class="card"><h2>Fase de rotas</h2><p class="sub">Você contra o oponente direto (média por jogo)</p><div class="kpis mini" id="laneKpis"></div><ul class="insights tips" id="laneTips"></ul></div>
+        <div class="card"><h2>Onde você morre</h2><p class="sub" id="mapSub">Cada ponto é uma morte</p><div class="map" id="deathMap"></div><div class="legend" id="mapLegend"></div></div>
+        <div class="card"><h2>Quando você morre</h2><p class="sub">Mortes por jogo em cada faixa de minutos</p><div class="chart"><canvas id="cDeathTime"></canvas></div></div>
+      </div>
+    </div>
+    <div class="card hidden" id="tlOff" style="margin-top:14px"><p class="sub" style="margin:0">Marque <b>Linha do tempo</b> na busca para ver fase de rotas, mapa de mortes e tempo do 1º item.</p></div>
+
+    <div class="grid g2">
+      <div class="card"><h2 id="top1Title">Top 1 do servidor</h2><p class="sub" id="top1Sub"></p><div id="top1Body"></div></div>
+      <div class="card"><h2 id="bestTitle">Melhores jogadores do seu campeão</h2><p class="sub" id="bestSub"></p><div class="scroll" id="bestTable"></div></div>
     </div>
 
     <div class="grid">
@@ -175,9 +115,9 @@ ul.tips .good{color:var(--text-2)}
     </div>
 
     <div class="grid g3">
-      <div class="card"><h2>KDA por jogo</h2><p class="sub">Linha = média móvel de 10</p><div class="chart"><canvas id="cKda"></canvas></div></div>
-      <div class="card"><h2>CS por minuto</h2><p class="sub">Linha = média móvel de 10</p><div class="chart"><canvas id="cCs"></canvas></div></div>
-      <div class="card"><h2>Dano por minuto</h2><p class="sub">Linha = média móvel de 10</p><div class="chart"><canvas id="cDmg"></canvas></div></div>
+      <div class="card"><h2>KDA por jogo</h2><p class="sub">Linha = média móvel de 10 · tracejado = metas por elo na sua rota</p><div class="chart"><canvas id="cKda"></canvas></div></div>
+      <div class="card"><h2>CS por minuto</h2><p class="sub">Linha = média móvel de 10 · tracejado = metas por elo na sua rota</p><div class="chart"><canvas id="cCs"></canvas></div></div>
+      <div class="card"><h2>Dano por minuto</h2><p class="sub">Linha = média móvel de 10 · tracejado = metas por elo na sua rota</p><div class="chart"><canvas id="cDmg"></canvas></div></div>
     </div>
 
     <div class="grid g3">
@@ -192,6 +132,7 @@ ul.tips .good{color:var(--text-2)}
   </div>
 </div>
 
+<script src="{{ url_for('static', filename='metrics.js') }}"></script>
 <script>
 // ---------- tema ----------
 const root = document.documentElement;
@@ -205,14 +146,22 @@ document.getElementById('themeBtn').onclick = () => {
 const css = v => getComputedStyle(root).getPropertyValue(v).trim();
 
 // ---------- Data Dragon (ícones) ----------
-let DD = { v: null, byKey: {} };
+let DD = { v: null, byKey: {}, runes: {}, spells: {} };
 fetch('https://ddragon.leagueoflegends.com/api/versions.json').then(r=>r.json()).then(async vs=>{
   DD.v = vs[0];
   const c = await (await fetch(`https://ddragon.leagueoflegends.com/cdn/${DD.v}/data/pt_BR/champion.json`)).json();
   for (const ch of Object.values(c.data)) DD.byKey[ch.key] = ch;
+  const [runes, spells] = await Promise.all([
+    fetch(`https://ddragon.leagueoflegends.com/cdn/${DD.v}/data/pt_BR/runesReforged.json`).then(r=>r.json()),
+    fetch(`https://ddragon.leagueoflegends.com/cdn/${DD.v}/data/pt_BR/summoner.json`).then(r=>r.json())]);
+  for (const st of runes){ DD.runes[st.id] = st; for (const sl of st.slots) for (const ru of sl.runes) DD.runes[ru.id] = ru; }
+  for (const sp of Object.values(spells.data)) DD.spells[sp.key] = sp;
   if (DATA) render();
 }).catch(()=>{});
 const champImg = n => DD.v && n ? `<img src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/champion/${n === 'FiddleSticks' ? 'Fiddlesticks' : n}.png" loading="lazy" onerror="this.remove()">` : '';
+const runeImg = id => DD.runes[id] ? `<img src="https://ddragon.leagueoflegends.com/cdn/img/${DD.runes[id].icon}" title="${DD.runes[id].name}" loading="lazy" onerror="this.remove()">` : '';
+const runeName = id => DD.runes[id]?.name || ('#'+id);
+const spellImg = key => DD.v && DD.spells[key] ? `<img src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/spell/${DD.spells[key].id}.png" title="${DD.spells[key].name}" loading="lazy" onerror="this.remove()">` : '';
 const itemImg = id => DD.v && id ? `<img src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/item/${id}.png" loading="lazy" onerror="this.remove()">` : '';
 
 // ---------- busca ----------
@@ -239,7 +188,7 @@ async function poll(){
   $('csvBtn').classList.remove('hidden');
   setupFilters(); render();
   $('dash').classList.remove('hidden');
-  loadBench();
+  BENCH = {}; setupTier(); loadBench();
 }
 $('csvBtn').onclick = () => location.href = `/api/job/${JOB}/csv`;
 
@@ -312,14 +261,42 @@ function wrBar(id, groups, {horizontal=false, labelFn=g=>g.key}={}){
         tooltip:{ callbacks:{ label: c => { const g = groups[c.dataIndex]; return ` ${fmt(g.wr)}% winrate — ${g.wins}V ${g.games-g.wins}D (${g.games} jogos) — KDA ${fmt(g.kda,2)}`; }}}}}});
 }
 
+// linhas horizontais tracejadas com rótulo (metas por elo)
+Chart.register({id:'refLines', afterDatasetsDraw(c){
+  const L = c.options.plugins.refLines; if (!L || !L.length) return;
+  const {ctx, chartArea:a, scales:{y}} = c; ctx.save(); ctx.font = `11px ${Chart.defaults.font.family}`; ctx.textAlign = 'right';
+  let last = -99;
+  for (const l of [...L].sort((p,q)=>q.y-p.y)){
+    const py = y.getPixelForValue(l.y); if (py < a.top || py > a.bottom) continue;
+    ctx.strokeStyle = l.color; ctx.setLineDash([5,4]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(a.left, py); ctx.lineTo(a.right, py); ctx.stroke();
+    const ty = py - last < 12 ? py + 12 : py - 4; last = ty;
+    ctx.fillStyle = l.color; ctx.fillText(`${l.label} ${fmt(l.y, l.d)}`, a.right - 4, ty);
+  }
+  ctx.restore(); }});
+const curRole = rows => $('fRole').value || group(rows.filter(r=>r.role!=='—'), r=>r.role).sort((a,b)=>b.games-a.games)[0]?.key;
+function benchList(){
+  if (!$('fTier').options.length) return [];
+  const {my, above} = benchTiers(), C = {my: css('--muted'), above: css('--s4'), elite: css('--s1')};
+  return [['my',my],['above',above],['elite','ELITE']].filter(([,t])=>t && BENCH[t])
+    .map(([id,t])=>({id, t, name: TIER_PT[t], b: BENCH[t], color: C[id]}));
+}
+function goalLines(key, rows){
+  const role = curRole(rows);
+  return benchList().map(B=>{ const p = B.b.roles[role]?.metrics[key];
+    return p && {y: p[1], label: B.name, color: B.color, d: key==='dmgMin' ? 0 : 2}; }).filter(Boolean);
+}
+
 function trendChart(id, rows, key, color){
   const chron = [...rows].reverse(); const vals = chron.map(r=>r[key]);
+  const lines = goalLines(key, rows);
   chart(id, {type:'line', data:{labels: chron.map((_,i)=>i+1), datasets:[
     {type:'scatter', label:'Jogo', data: vals.map((v,i)=>({x:i+1,y:v})), pointRadius:3, pointHoverRadius:5,
      backgroundColor: chron.map(r=> r.win? css('--win')+'99' : css('--loss')+'99'), borderWidth:0},
     {label:'Média móvel 10', data: rolling(vals,10), borderColor: color, borderWidth:2, pointRadius:0, tension:.3}]},
-    options:{ scales:{x:{type:'linear', grid:{display:false}, ticks:{maxTicksLimit:8}, title:{display:true,text:'jogos (antigo → recente)'}}, y:{beginAtZero:true}},
-      plugins:{ tooltip:{ callbacks:{ title: c => { const r = chron[c[0].dataIndex]; return `${r.champion} — ${r.win?'Vitória':'Derrota'} — ${new Date(r.ts).toLocaleDateString('pt-BR')}`; },
+    options:{ scales:{x:{type:'linear', grid:{display:false}, ticks:{maxTicksLimit:8}, title:{display:true,text:'jogos (antigo → recente)'}},
+        y:{beginAtZero:true, suggestedMax: lines.length ? Math.max(...lines.map(l=>l.y))*1.15 : undefined}},
+      plugins:{ refLines: lines, tooltip:{ callbacks:{ title: c => { const r = chron[c[0].dataIndex]; return `${r.champion} — ${r.win?'Vitória':'Derrota'} — ${new Date(r.ts).toLocaleDateString('pt-BR')}`; },
         label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y,2)}` }}}}});
 }
 
@@ -350,9 +327,10 @@ function render(){
     <div><div class="name">${a.gameName}<span style="color:var(--muted)">#${a.tagLine}</span></div>
     <div class="sub" style="margin:0">Nível ${s.summonerLevel} · ${DATA.platform.toUpperCase()} · ${DATA.matches.length} partidas baixadas</div></div>
     <div class="ranks">${(DATA.league||[]).filter(l=>qName[l.queueType]).map(l=>`
-      <div class="rank"><div class="q">${qName[l.queueType]}</div>
+      <div class="rank"><img src="https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-emblem/emblem-${l.tier.toLowerCase()}.png" alt="${l.tier}" onerror="this.remove()">
+      <div><div class="q">${qName[l.queueType]}</div>
       <div class="t">${l.tier} ${['MASTER','GRANDMASTER','CHALLENGER'].includes(l.tier)?'':l.rank} · ${l.leaguePoints} PDL</div>
-      <div class="sub" style="margin:0">${l.wins}V ${l.losses}D · ${fmt(pct(l.wins,l.wins+l.losses),1)}%</div></div>`).join('') || '<div class="rank"><div class="q">Ranqueada</div><div class="t">Sem elo</div></div>'}</div>`;
+      <div class="sub" style="margin:0">${l.wins}V ${l.losses}D · ${fmt(pct(l.wins,l.wins+l.losses),1)}%</div></div></div>`).join('') || '<div class="rank"><div class="q">Ranqueada</div><div class="t">Sem elo</div></div>'}</div>`;
 
   // KPIs
   const totalMin = rows.reduce((t,r)=>t+r.duration,0)/60;
@@ -483,114 +461,316 @@ function render(){
   if (topDuo) ins.push(`Duo mais frequente: <b>${topDuo.key}</b> — ${topDuo.games} jogos, ${fmt(topDuo.wr,0)}% de winrate.`);
   $('insights').innerHTML = ins.map(i=>`<li>${i}</li>`).join('') || '<li>Poucos jogos para gerar insights.</li>';
   renderBench(rows);
+  renderChampRecs(rows); renderTimeline(rows); renderBuild(rows); renderTop1(rows);
 }
 
-// ---------- você × elite ----------
-let BENCH = null;
-// higher: maior é melhor · skip: rotas onde a métrica não faz sentido
-const BM = [
-  {k:'csMin', n:'CS/min', d:2, higher:true, skip:['Suporte'],
-   tip:(y,e)=>`<b>Farm:</b> você faz <b>${y}</b> CS/min; a elite faz <b>${e}</b>. Não deixe minions morrerem na rota, pegue waves laterais no meio do jogo e farme no caminho entre um objetivo e outro.`},
-  {k:'cs10', n:'CS aos 10 min', d:0, higher:true, skip:['Suporte','Selva'],
-   tip:(y,e)=>`<b>Fase de rotas:</b> <b>${y}</b> minions aos 10 min contra <b>${e}</b> da elite. Treine last hit no modo prática (meta: 80+ aos 10 min sem itens) e não troque dano quando uma wave grande estiver morrendo.`},
-  {k:'goldMin', n:'Ouro/min', d:0, higher:true,
-   tip:(y,e)=>`<b>Renda:</b> <b>${y}</b> de ouro/min contra <b>${e}</b>. Some farm, placas e objetivos: toda volta à base deveria render um item ou componente importante.`},
-  {k:'deaths', n:'Mortes', d:1, higher:false,
-   tip:(y,e)=>`<b>Mortes:</b> <b>${y}</b> por jogo contra <b>${e}</b> da elite. Antes de avançar, pergunte onde estão o caçador e o meio inimigo; sem visão do lado de lá, jogue recuado.`},
-  {k:'kp', n:'Part. em abates %', d:0, higher:true,
-   tip:(y,e)=>`<b>Presença no mapa:</b> participação em abates de <b>${y}%</b> contra <b>${e}%</b>. Olhe o minimapa a cada poucos segundos e chegue antes nas lutas por dragão, arauto e torres.`},
-  {k:'dmgMin', n:'Dano/min', d:0, higher:true,
-   tip:(y,e)=>`<b>Dano:</b> <b>${y}</b> de dano/min contra <b>${e}</b>. Procure trocas mais frequentes na rota e, nas lutas, fique em posição de bater o tempo todo sem se expor.`},
-  {k:'dmgShare', n:'% dano do time', d:1, higher:true,
-   tip:(y,e)=>`<b>Impacto nas lutas:</b> você causa <b>${y}%</b> do dano do time; a elite causa <b>${e}%</b>. Esteja presente nas lutas e acerte suas habilidades principais.`},
-  {k:'visionMin', n:'Visão/min', d:2, higher:true,
-   tip:(y,e)=>`<b>Visão:</b> placar de visão de <b>${y}</b>/min contra <b>${e}</b>. Use o trinket sempre que estiver carregado, coloque sentinelas antes dos objetivos e troque de trinket na hora certa.`},
-  {k:'controlWards', n:'Sentinelas de controle', d:1, higher:true,
-   tip:(y,e)=>`<b>Sentinelas de controle:</b> <b>${y}</b> por jogo contra <b>${e}</b>. Compre pelo menos uma a cada volta à base, é o item mais barato com maior impacto.`},
-  {k:'wardsKilled', n:'Sentinelas destruídas', d:1, higher:true,
-   tip:(y,e)=>`<b>Negar visão:</b> você destrói <b>${y}</b> sentinelas por jogo contra <b>${e}</b>. Use a Lente do Oráculo antes de dragão e barão e limpe a visão inimiga na sua selva.`},
-  {k:'turrets', n:'Torres (participação)', d:1, higher:true,
-   tip:(y,e)=>`<b>Objetivos:</b> você participa de <b>${y}</b> torres por jogo contra <b>${e}</b>. Converta abates e vantagens em placas e torres em vez de voltar para a base sem pressionar.`},
-  {k:'soloKills', n:'Abates solo', d:1, higher:true, skip:['Suporte'],
-   tip:(y,e)=>`<b>Agressividade na rota:</b> <b>${y}</b> abates solo por jogo contra <b>${e}</b>. Aprenda os níveis de poder do seu campeão (nível 2, 3 e 6) e puna quando o inimigo errar.`},
-];
+// ---------- você × seu elo × elo acima × elite ----------
+let BENCH = {}; // tier -> base (ou null se ainda não gerada)
+
+function setupTier(){
+  const lg = DATA.league || [];
+  const solo = lg.find(l=>l.queueType==='RANKED_SOLO_5x5') || lg.find(l=>l.queueType==='RANKED_FLEX_SR');
+  $('fTier').innerHTML = TIERS.map(t=>`<option value="${t}">${TIER_PT[t]}</option>`).join('');
+  $('fTier').value = solo && TIERS.includes(solo.tier) ? solo.tier : 'GOLD';
+  $('fTier').onchange = loadBench;
+}
+const benchTiers = () => { const my = $('fTier').value; return {my, above: TIERS[TIERS.indexOf(my)+1] || null}; };
+const wanted = () => { const {my, above} = benchTiers(); return [my, above, 'ELITE'].filter(Boolean); };
 
 async function loadBench(){
-  BENCH = null;
-  try { const r = await fetch(`/api/benchmark?platform=${DATA.platform}`); if (r.ok) BENCH = await r.json(); } catch(e){}
-  renderBench(filtered());
+  if (!$('fTier').options.length) setupTier();
+  try {
+    const r = await fetch(`/api/benchmark?platform=${DATA.platform}&tiers=${wanted().join(',')}`);
+    if (r.ok) Object.assign(BENCH, await r.json());
+  } catch(e){}
+  render();
 }
 
 $('benchBtn').onclick = async () => {
+  const missing = wanted().filter(t=>!BENCH[t]);
+  const tiers = missing.length ? missing : wanted();
   $('benchBtn').disabled = true; $('benchProg').classList.remove('hidden');
   const r = await fetch('/api/benchmark/build', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({platform: DATA.platform})});
+    body: JSON.stringify({platform: DATA.platform, tiers})});
   const id = (await r.json()).jobId;
   const tick = async () => {
     const j = await (await fetch(`/api/job/${id}`)).json();
-    $('benchSub').textContent = j.message + (j.total ? ` — ${j.progress}/${j.total}` : '') + ' (pode levar alguns minutos com a chave de desenvolvedor)';
+    $('benchSub').textContent = j.message + (j.total ? ` — ${j.progress}/${j.total}` : '') + ` (~5 min por base com a chave de desenvolvedor)`;
     $('benchProg').firstElementChild.style.width = j.total ? (100*j.progress/j.total)+'%' : '5%';
     if (j.status === 'running') return setTimeout(tick, 1000);
     $('benchBtn').disabled = false; $('benchProg').classList.add('hidden');
     if (j.status === 'error') { $('benchSub').textContent = j.message; return; }
-    BENCH = j.result; renderBench(filtered());
+    Object.assign(BENCH, j.result); render();
   };
   tick();
 };
 
 function renderBench(allRows){
-  $('benchBtn').textContent = BENCH ? 'Atualizar referência' : 'Gerar referência';
-  if (!BENCH){
-    $('benchBody').classList.add('hidden');
-    if (!$('benchBtn').disabled) $('benchSub').textContent = 'Ainda não há base de referência para este servidor. Clique em "Gerar referência" para baixar partidas Solo/Duo recentes de jogadores Challenger e Grão-Mestre (leva alguns minutos, uma vez só).';
+  if (!$('fTier').options.length) return;
+  const {my, above} = benchTiers();
+  const missing = wanted().filter(t=>!BENCH[t]);
+  $('benchBtn').textContent = missing.length ? `Gerar bases: ${missing.map(t=>TIER_PT[t]).join(', ')}` : 'Atualizar bases';
+
+  const COLORS = {my: css('--muted'), above: css('--s4'), elite: css('--s1')};
+  const bases = [['my',my],['above',above],['elite','ELITE']]
+    .filter(([,t])=>t && BENCH[t]).map(([id,t])=>({id, t, name: TIER_PT[t], b: BENCH[t], color: COLORS[id]}));
+  const hide = () => { $('benchBody').classList.add('hidden'); $('benchClimb').classList.add('hidden'); };
+  if (!bases.length){
+    hide();
+    if (!$('benchBtn').disabled) $('benchSub').textContent = `Nenhuma base gerada ainda. Clique em "Gerar bases" para baixar partidas Solo/Duo recentes de jogadores do ${TIER_PT[my]}${above ? ', do '+TIER_PT[above] : ''} e do topo do servidor (~5 min por base, uma vez só).`;
     return;
   }
-  $('benchBody').classList.remove('hidden');
 
   // rota: a do filtro, senão a mais jogada
   const role = $('fRole').value || group(allRows.filter(r=>r.role!=='—'), r=>r.role).sort((a,b)=>b.games-a.games)[0]?.key;
   const rows = allRows.filter(r=>r.role===role);
   const champ = $('fChamp').value;
-  const champRef = champ && BENCH.champs[`${role}|${champ}`];
-  const ref = champRef || BENCH.roles[role];
-  const built = new Date(BENCH.builtAt).toLocaleDateString('pt-BR');
-  const base = `Base: ${fmtInt(BENCH.games)} jogos de ${BENCH.matches} partidas Solo/Duo do topo do ${BENCH.platform.toUpperCase()} (gerada em ${built}).`;
-  if (!role || !ref || rows.length < 3){
-    $('benchSub').textContent = `${base} Poucos jogos seus${role ? ' como '+role : ''} para comparar. Mude os filtros.`;
-    $('benchTips').innerHTML = ''; $('benchTable').innerHTML = ''; return;
+  for (const B of bases){ B.champ = !!(champ && B.b.champs[`${role}|${champ}`]); B.ref = B.champ ? B.b.champs[`${role}|${champ}`] : B.b.roles[role]; }
+  const usable = bases.filter(B=>B.ref);
+  if (!role || !usable.length || rows.length < 3){
+    hide(); $('benchSub').textContent = `Poucos jogos seus${role ? ' como '+role : ''} para comparar. Mude os filtros.`; return;
   }
-  $('benchSub').textContent = `Comparando seus ${rows.length} jogos como ${role}${champRef ? ' de '+champ : ''} com ${fmtInt(ref.n)} jogos da elite${champRef ? ' com o mesmo campeão' : ' na mesma rota'}${!$('fRole').value ? ' (use o filtro Rota para trocar)' : ''}. ${base}`;
+  $('benchBody').classList.remove('hidden');
+  const target = usable.find(B=>B.id==='above') || usable.find(B=>B.id==='elite') || usable[0];
+  const mine = usable.find(B=>B.id==='my');
+  const who = B => B.id==='elite' ? 'a elite' : `a média do ${B.name}`;
 
-  const res = BM.filter(m=>!(m.skip||[]).includes(role) && ref.metrics[m.k]).map(m=>{
+  $('benchSub').innerHTML = `Seus ${rows.length} jogos como <b>${role}</b>${champ ? ' de '+champ : ''} comparados com: ` +
+    usable.map(B=>`${B.name} (${fmtInt(B.ref.n)} jogos${B.champ ? ' com '+champ : ''}, base de ${new Date(B.b.builtAt).toLocaleDateString('pt-BR')})`).join(' · ') +
+    (missing.length ? ` · faltam: ${missing.map(t=>TIER_PT[t]).join(', ')}` : '') + (!$('fRole').value ? ' · use o filtro Rota para trocar' : '');
+
+  const spread = (p,m) => Math.max(p[2]-p[0], Math.abs(p[1])*0.1, 0.01);
+  const res = BM.filter(m=>!(m.skip||[]).includes(role) && target.ref.metrics[m.k]).map(m=>{
     const vals = rows.map(r=>r[m.k]).filter(v=>v!=null);
     if (!vals.length) return null;
+    const dir = m.higher ? 1 : -1;
     const you = vals.reduce((a,b)=>a+b,0)/vals.length;
-    const [p25,p50,p75] = ref.metrics[m.k];
-    const spread = Math.max(p75-p25, Math.abs(p50)*0.1, 0.01);
-    const z = (you-p50)/spread * (m.higher?1:-1); // < 0 = abaixo da elite
-    return {...m, you, p25, p50, p75, z};
+    const ref = Object.fromEntries(usable.filter(B=>B.ref.metrics[m.k]).map(B=>[B.id, B.ref.metrics[m.k]]));
+    const t = ref[target.id];
+    const zT = (you - t[1]) / spread(t) * dir;               // < 0 = abaixo da meta
+    const g = ref.my && ref.above ? (ref.above[1]-ref.my[1]) / spread(ref.my) * dir : null; // o quanto muda entre os elos
+    return {...m, you, ref, zT, g};
   }).filter(Boolean);
 
-  const sign = (m,v) => fmt(v,m.d);
-  const weak = res.filter(r=>r.z < -0.5).sort((a,b)=>a.z-b.z).slice(0,5);
-  const strong = res.filter(r=>r.z > 0.25).sort((a,b)=>b.z-a.z).slice(0,2);
+  // o que separa o seu elo do de cima
+  const climb = res.filter(r=>r.g!=null && r.g>0.15).sort((a,b)=>b.g-a.g).slice(0,4);
+  if (climb.length){
+    $('benchClimb').innerHTML = `📈 O que mais muda do <b>${TIER_PT[my]}</b> para o <b>${TIER_PT[above]}</b> (${role}): ` +
+      climb.map(r=>`<b>${r.n}</b> (${fmt(r.ref.my[1],r.d)} → ${fmt(r.ref.above[1],r.d)})`).join(' · ');
+    $('benchClimb').classList.remove('hidden');
+  } else $('benchClimb').classList.add('hidden');
+
+  // dicas: abaixo da meta, priorizando o que mais pesa para subir de elo
+  const score = r => -r.zT * (r.g!=null ? 0.5 + Math.max(r.g,0) : 1);
+  const weak = res.filter(r=>r.zT < -0.3).sort((a,b)=>score(b)-score(a)).slice(0,5);
+  const strong = res.filter(r=>r.zT > 0).sort((a,b)=>b.zT-a.zT).slice(0,2);
+  const T = target.id==='above' ? `Para chegar ao ${target.name}` : `Para chegar ao nível da elite`;
   $('benchTips').innerHTML =
-    weak.map(r=>`<li>${r.tip(sign(r,r.you), sign(r,r.p50))}</li>`).join('') +
-    strong.map(r=>`<li class="good">✅ Ponto forte: <b>${r.n}</b> (${sign(r,r.you)} contra ${sign(r,r.p50)} da elite). Continue assim.</li>`).join('') ||
-    '<li>Suas médias estão dentro da faixa da elite em todas as métricas.</li>';
+    weak.map(r=>`<li>${r.tip(fmt(r.you,r.d), fmt(r.ref[target.id][1],r.d), who(target))}${r.ref.elite && target.id!=='elite' ? ` <span style="color:var(--muted)">Elite: ${fmt(r.ref.elite[1],r.d)}.</span>` : ''}</li>`).join('') +
+    strong.map(r=>`<li class="good">✅ Ponto forte: <b>${r.n}</b> (${fmt(r.you,r.d)}) já está no nível ${target.id==='elite' ? 'da elite' : 'do '+target.name}.</li>`).join('') ||
+    '<li>Suas médias estão perto da meta em todas as métricas.</li>';
+  if (weak.length) $('benchTips').insertAdjacentHTML('afterbegin', `<li style="list-style:none;margin-left:-18px;color:var(--text-2)">${T}, priorize:</li>`);
 
   table('benchTable', [
     {k:'n', t:'Métrica'},
-    {k:'you', t:'Você', f:r=>`<b>${sign(r,r.you)}</b>`},
-    {k:'p50', t:'Elite', f:r=>sign(r,r.p50)},
-    {k:'p25', t:'Faixa elite', f:r=>`<span style="color:var(--muted)">${sign(r,r.higher?r.p25:r.p75)} – ${sign(r,r.higher?r.p75:r.p25)}</span>`},
-    {k:'z', t:'', f:r=>{
-      const lo = Math.min(r.you, r.p25 - (r.p75-r.p25)), hi = Math.max(r.you, r.p75 + (r.p75-r.p25));
-      const x = v => `${((v-lo)/((hi-lo)||1)*100).toFixed(1)}%`;
-      const col = r.z < -0.5 ? css('--loss') : css('--win');
-      return `<span class="cmp"><span class="band" style="left:${x(r.p25)};right:calc(100% - ${x(r.p75)})"></span><span class="med" style="left:${x(r.p50)}"></span><span class="you" style="left:${x(r.you)};background:${col}"></span></span>`;
+    {k:'you', t:'Você', f:r=>`<b style="color:${r.zT < -0.3 ? css('--loss') : 'inherit'}">${fmt(r.you,r.d)}</b>`},
+    ...usable.map(B=>({k:'b_'+B.id, t:B.name, f:r=>r.ref[B.id] ? fmt(r.ref[B.id][1],r.d) : '—'})),
+    {k:'zT', t:'', f:r=>{
+      const t = r.ref[target.id], meds = Object.values(r.ref).map(p=>p[1]);
+      const lo = Math.min(r.you, t[0], ...meds), hi = Math.max(r.you, t[2], ...meds), pad = (hi-lo)*0.08 || 1;
+      const x = v => `${((v-lo+pad)/((hi-lo+2*pad))*100).toFixed(1)}%`;
+      return `<span class="cmp"><span class="band" style="left:${x(t[0])};right:calc(100% - ${x(t[2])})"></span>` +
+        usable.filter(B=>r.ref[B.id]).map(B=>`<span class="med" style="left:${x(r.ref[B.id][1])};background:${B.color}"></span>`).join('') +
+        `<span class="you" style="left:${x(r.you)};background:${r.zT < -0.3 ? css('--loss') : css('--win')}"></span></span>`;
     }},
-  ], res, 'z', false);
+  ], res.map(r=>({...r, ...Object.fromEntries(Object.entries(r.ref).map(([id,p])=>['b_'+id, p[1]]))})), 'zT', false);
+  $('benchLegend').innerHTML = `<span><i style="background:${css('--win')};border-radius:50%"></i>Você</span>` +
+    usable.map(B=>`<span><i style="background:${B.color}"></i>${B.name}</span>`).join('') +
+    `<span><i style="background:color-mix(in srgb,var(--muted) 35%,transparent)"></i>Faixa normal do ${target.id==='elite' ? 'Top BR' : target.name}</span>`;
+}
+// ---------- recomendação de campeões ----------
+const pill = (cls, t) => `<span class="pill ${cls}">${t}</span>`;
+const avgOf = (rows, k) => { const v = rows.map(r=>r[k]).filter(x=>x!=null); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; };
+const zScore = (you, p, higher) => Math.max(-2, Math.min(2, (you-p[1]) / Math.max(p[2]-p[0], Math.abs(p[1])*0.1, 0.01) * (higher?1:-1)));
+
+function renderChampRecs(rows){
+  const bases = benchList(), B = bases.find(b=>b.id==='my') || bases.find(b=>b.id==='elite');
+  if (!B){
+    $('champRecSub').textContent = 'Gere as bases na seção "Você × Seu elo" para comparar o seu desempenho em cada campeão com o do seu elo.';
+    $('champRecTips').innerHTML = ''; $('champRecs').innerHTML = ''; return;
+  }
+  const MINC = 3;
+  const list = group(rows, r=>r.champion).filter(g=>g.games>=MINC).map(g=>{
+    const role = group(g.rows, r=>r.role).sort((a,b)=>b.games-a.games)[0].key;
+    const ref = B.b.champs[`${role}|${g.key}`] || B.b.roles[role];
+    if (!ref) return null;
+    const rr = g.rows.filter(r=>r.role===role);
+    const zs = BM.filter(m=>!(m.skip||[]).includes(role) && ref.metrics[m.k] && !['wardsKilled','turrets','soloKills'].includes(m.k))
+      .map(m=>{ const y = avgOf(rr, m.k); return y==null ? null : zScore(y, ref.metrics[m.k], m.higher); }).filter(z=>z!=null);
+    if (!zs.length) return null;
+    const perf = zs.reduce((a,b)=>a+b,0)/zs.length;
+    const verdict = perf>0.15 && g.wr>=50 ? 'Foque' : perf<-0.3 && g.wr<50 ? 'Evite' : g.wr>=55 ? 'Bom' : g.wr<45 ? 'Atenção' : 'Neutro';
+    return {...g, role, perf, verdict};
+  }).filter(Boolean);
+
+  $('champRecSub').textContent = `Desempenho médio (farm, KDA, mortes, dano, visão…) comparado com ${B.id==='elite' ? 'a elite' : 'a média do '+B.name} no mesmo campeão/rota, junto com o seu winrate. Campeões com ${MINC}+ jogos.`;
+  const foc = list.filter(c=>c.verdict==='Foque').sort((a,b)=>b.perf-a.perf), ev = list.filter(c=>c.verdict==='Evite').sort((a,b)=>a.perf-b.perf);
+  const tips = [];
+  if (foc.length) tips.push(`🎯 <b>Foque em:</b> ${foc.slice(0,3).map(c=>`<b>${c.key}</b> (${fmt(c.wr,0)}% em ${c.games} jogos)`).join(', ')}. Você joga acima da média do seu elo e vence com eles.`);
+  if (ev.length) tips.push(`⛔ <b>Considere deixar de lado:</b> ${ev.slice(0,3).map(c=>`<b>${c.key}</b> (${fmt(c.wr,0)}% em ${c.games} jogos)`).join(', ')}. Abaixo da média do elo e perdendo mais do que ganhando.`);
+  const pool = group(rows, r=>r.champion).length;
+  if (pool > 15 && rows.length >= 40) tips.push(`🧩 Você jogou <b>${pool}</b> campeões diferentes. Um pool menor (3 a 5 campeões por rota) acelera a evolução, porque você aprende matchups e power spikes.`);
+  $('champRecTips').innerHTML = tips.map(t=>`<li>${t}</li>`).join('') || (list.length ? '' : '<li>Poucos jogos por campeão para recomendar.</li>');
+
+  const vcls = {Foque:'w', Bom:'w', Evite:'l', 'Atenção':'l', Neutro:'n'};
+  table('champRecs', [
+    {k:'key', t:'Campeão', f:r=>`<span style="display:inline-flex;align-items:center">${champImg(r.key)}${r.key}</span>`},
+    {k:'role', t:'Rota'}, {k:'games', t:'Jogos'}, {k:'wr', t:'Winrate', f:wrCell},
+    {k:'perf', t:`vs ${B.name}`, f:r=>{ const w = Math.min(Math.abs(r.perf),2)/2*50;
+      return `${r.perf>=0?'+':''}${fmt(r.perf,2)}<span class="perf"><i style="${r.perf>=0 ? 'left:50%' : 'right:50%'};width:${w}%;background:${r.perf>=0 ? css('--win') : css('--loss')}"></i></span>`; }},
+    {k:'verdict', t:'Veredito', f:r=>pill(vcls[r.verdict], r.verdict)},
+  ], list, 'perf');
+}
+
+// ---------- linha do tempo: fase de rotas, mapa e horário das mortes ----------
+function renderTimeline(rows){
+  const withTl = rows.filter(r=>r.deathsTl);
+  const has = DATA.matches.some(r=>r.deathsTl);
+  $('tlSection').classList.toggle('hidden', !has); $('tlOff').classList.toggle('hidden', has);
+  if (!has) return;
+
+  // fase de rotas
+  const lane = rows.filter(r=>r.gd10!=null), l15 = rows.filter(r=>r.gd15!=null);
+  const ahead = l15.filter(r=>r.gd15>0), behind = l15.filter(r=>r.gd15<=0);
+  const wrA = pct(ahead.filter(r=>r.win).length, ahead.length), wrB = pct(behind.filter(r=>r.win).length, behind.length);
+  const fi = rows.filter(r=>r.firstItem!=null && r.oppFirstItem!=null);
+  const fiY = avg(fi,'firstItem'), fiO = avg(fi,'oppFirstItem');
+  const sg = (v,d=0) => (v>=0?'+':'') + fmt(v,d);
+  const k = [
+    ['Ouro aos 10', lane.length ? sg(avg(lane,'gd10')) : '—', `${lane.length} jogos`],
+    ['Ouro aos 15', l15.length ? sg(avg(l15,'gd15')) : '—', ''],
+    ['CS aos 10', lane.length ? sg(avg(lane,'csd10'),1) : '—', ''],
+    ['XP aos 10', lane.length ? sg(avg(lane,'xpd10')) : '—', ''],
+    ['À frente aos 15', l15.length ? fmt(pct(ahead.length, l15.length),0)+'%' : '—', 'dos jogos'],
+    ['1º item', fi.length ? mmss(fiY) : '—', fi.length ? `oponente: ${mmss(fiO)}` : ''],
+  ];
+  $('laneKpis').innerHTML = k.map(([l,v,d])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d||'&nbsp;'}</div></div>`).join('');
+
+  const tips = [];
+  if (lane.length >= 5){
+    const g10 = avg(lane,'gd10');
+    if (g10 < -150) tips.push(`Você sai da fase de rotas <b>${fmtInt(-g10)}</b> de ouro atrás aos 10 min (${fmt(avg(lane,'csd10'),1)} CS de diferença). Foque em last hit e em não morrer antes dos 10.`);
+    else if (g10 > 150) tips.push(`✅ Você ganha a rota: <b>+${fmtInt(g10)}</b> de ouro aos 10 min, em média.`);
+  }
+  if (ahead.length >= 4 && wrA < 60) tips.push(`Você está à frente aos 15 min em <b>${fmt(pct(ahead.length,l15.length),0)}%</b> dos jogos, mas vence só <b>${fmt(wrA,0)}%</b> deles. Converta a vantagem: pressione torres, ajude nos objetivos e evite lutas desnecessárias.`);
+  if (behind.length >= 4 && wrB < 30) tips.push(`Quando está atrás aos 15 min você vence só <b>${fmt(wrB,0)}%</b>. Nesses jogos, jogue seguro, farme e espere o seu time em vez de forçar jogadas.`);
+  if (behind.length >= 4 && wrB >= 45) tips.push(`✅ Mesmo atrás aos 15 min você vence <b>${fmt(wrB,0)}%</b>: bom jogo de recuperação.`);
+  if (fi.length >= 5 && fiY - fiO > 45) tips.push(`Você fecha o 1º item em <b>${mmss(fiY)}</b>, ${fmtInt(fiY-fiO)}s depois do oponente. Volte à base com ouro suficiente para um componente e evite voltas sem comprar nada.`);
+
+  // mortes: posição e momento
+  const deaths = withTl.flatMap(r=>r.deathsTl.map(([t,x,y])=>({t, x, y, win:r.win, side:r.side})));
+  const n = withTl.length || 1;
+  const early = deaths.filter(d=>d.t < 840).length / n;
+  // metade inimiga: azul começa embaixo à esquerda, vermelho em cima à direita
+  const enemyHalf = deaths.filter(d=> d.side==='Azul' ? d.x + d.y > 15000 : d.x + d.y < 15000).length;
+  const pEnemy = pct(enemyHalf, deaths.length);
+  if (deaths.length >= 15 && pEnemy > 55) tips.push(`<b>${fmt(pEnemy,0)}%</b> das suas mortes acontecem na metade inimiga do mapa. Só avance com visão e sabendo onde está o caçador inimigo.`);
+  if (withTl.length >= 5 && early > 1.3) tips.push(`Você morre <b>${fmt(early,1)}</b> vezes por jogo antes dos 14 min. Mortes cedo custam placas, farm e dragões: na dúvida, jogue recuado na fase de rotas.`);
+  $('laneTips').innerHTML = tips.map(t=>`<li>${t}</li>`).join('') || '<li>Sem alertas na fase de rotas com os filtros atuais.</li>';
+
+  const phase = t => t < 840 ? 0 : t < 1500 ? 1 : 2;
+  const PH = [['Até 14 min', css('--s4')], ['14–25 min', css('--s2')], ['25+ min', css('--loss')]];
+  $('mapSub').textContent = `${deaths.length} mortes em ${withTl.length} jogos · ${fmt(pEnemy,0)}% na metade inimiga do mapa`;
+  $('deathMap').innerHTML = (DD.v ? `<img src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/map/map11.png" alt="">` : '') +
+    `<svg viewBox="0 0 100 100">${deaths.map(d=>`<circle cx="${(d.x/14870*100).toFixed(1)}" cy="${(100-d.y/14980*100).toFixed(1)}" r="1.4" fill="${PH[phase(d.t)][1]}" fill-opacity=".75" stroke="#000" stroke-opacity=".35" stroke-width=".2"/>`).join('')}</svg>`;
+  $('mapLegend').innerHTML = PH.map(([l,c])=>`<span><i style="background:${c};border-radius:50%"></i>${l}</span>`).join('');
+
+  const B5 = ['0–5','5–10','10–15','15–20','20–25','25–30','30–35','35+'];
+  const per = list => { const c = Array(B5.length).fill(0); const g = withTl.filter(r=>list.includes(r)).length || 1;
+    for (const r of list) for (const [t] of r.deathsTl||[]) c[Math.min(7, Math.floor(t/300))]++; return c.map(v=>v/g); };
+  const W = withTl.filter(r=>r.win), L = withTl.filter(r=>!r.win);
+  chart('cDeathTime', {type:'bar', data:{labels: B5, datasets:[
+      {label:'Vitórias', data: per(W), backgroundColor: css('--win'), borderRadius:3, maxBarThickness:18},
+      {label:'Derrotas', data: per(L), backgroundColor: css('--loss'), borderRadius:3, maxBarThickness:18}]},
+    options:{scales:{y:{beginAtZero:true, title:{display:true, text:'mortes por jogo'}}, x:{grid:{display:false}, title:{display:true, text:'minutos'}}},
+      plugins:{legend:{display:true, position:'top', align:'end', labels:{boxWidth:10}},
+        tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt(c.parsed.y,2)} mortes por jogo`}}}}});
+}
+
+// ---------- build da elite + melhores jogadores do campeão ----------
+function renderBuild(rows){
+  const champ = $('fChamp').value || group(rows, r=>r.champion).sort((a,b)=>b.games-a.games)[0]?.key;
+  const cr = rows.filter(r=>r.champion===champ);
+  const role = group(cr, r=>r.role).sort((a,b)=>b.games-a.games)[0]?.key;
+  const key = `${role}|${champ}`;
+  const ORD = ['elite','above','my'], srcs = benchList().sort((a,b)=>ORD.indexOf(a.id)-ORD.indexOf(b.id));
+  const S = srcs.find(B=>B.b.builds?.[key]);
+  $('buildTitle').innerHTML = champ ? `<span style="display:inline-flex;align-items:center">${champImg(champ)}Build de ${champ}</span>` : 'Build da elite';
+  $('bestTitle').textContent = champ ? `Melhores jogadores de ${champ}` : 'Melhores jogadores do seu campeão';
+  const none = msg => { $('buildSub').textContent = msg; $('buildBody').innerHTML = ''; $('bestSub').textContent = msg; $('bestTable').innerHTML = ''; };
+  if (!champ) return none('Sem jogos com os filtros atuais.');
+  if (!srcs.length) return none('Gere as bases na seção "Você × Seu elo" para ver builds.');
+  if (!srcs.some(B=>B.b.builds)) return none('As bases foram geradas antes desta função existir. Clique em "Atualizar bases" para incluir builds e runas.');
+  if (!S) return none(`Nenhuma base tem 5+ jogos de ${champ} como ${role}. Escolha outro campeão no filtro.`);
+
+  const bd = S.b.builds[key], done = new Set(DATA.completedItems || []);
+  const who = S.id==='elite' ? 'da elite (Top BR)' : 'do '+S.name;
+  $('buildSub').textContent = `${bd.n} jogos ${who} com ${champ} como ${role} · winrate ${fmt(pct(bd.wins,bd.n),0)}% · seus jogos: ${cr.length}`;
+  const myPct = (f) => { const c = new Map(); for (const r of cr) for (const v of f(r)) c.set(v, (c.get(v)||0)+1); return c; };
+  const myItems = myPct(r=>new Set(r.items.slice(0,6).filter(i=>done.has(i))));
+  const myKey = myPct(r=>r.keystone ? [r.keystone] : []), mySec = myPct(r=>r.runeSecondary ? [r.runeSecondary] : []);
+  const mySp = myPct(r=>all(r.spells) ? [[...r.spells].sort((a,b)=>a-b).join('-')] : []);
+  const top = m => [...m].sort((a,b)=>b[1]-a[1])[0];
+  const P = (c, n) => fmt(pct(c, n), 0) + '%';
+  const fig = (img, label, mine) => `<figure class="${mine ? 'mine' : ''}">${img}${label}</figure>`;
+
+  const tips = [];
+  const ek = bd.keystones[0], yk = top(myKey);
+  if (ek && yk && ek[0] !== yk[0] && ek[1]/bd.n >= 0.4) tips.push(`A elite usa <b>${runeName(ek[0])}</b> em ${P(ek[1],bd.n)} dos jogos; você usa <b>${runeName(yk[0])}</b> em ${P(yk[1],cr.length)}.`);
+  const core = bd.items.filter(([,c])=>c/bd.n >= 0.35).map(([i])=>i);
+  const missing = core.filter(i=>(myItems.get(i)||0)/Math.max(cr.length,1) < 0.15);
+  if (missing.length) tips.push(`Itens centrais da elite que você quase não compra: ${missing.map(i=>`<span class="items">${itemImg(i)}</span>`).join('')}`);
+  const eliteSet = new Set(bd.items.map(([i])=>i));
+  const odd = [...myItems].filter(([i,c])=>c/cr.length >= 0.3 && !eliteSet.has(i)).map(([i])=>i);
+  if (odd.length) tips.push(`Você compra com frequência itens que a elite quase não usa com ${champ}: ${odd.map(i=>`<span class="items">${itemImg(i)}</span>`).join('')}`);
+
+  $('buildBody').innerHTML =
+    (tips.length ? `<ul class="insights tips">${tips.map(t=>`<li>${t}</li>`).join('')}</ul>` : '') +
+    `<h3>Itens mais comprados (% dos jogos) <span style="font-weight:400;color:var(--muted)">· contorno azul = você também compra</span></h3>
+     <div class="icons">${bd.items.map(([i,c])=>fig(itemImg(i), P(c,bd.n), (myItems.get(i)||0)/Math.max(cr.length,1) >= 0.25)).join('')}</div>
+     <h3>Runa principal e árvore secundária</h3>
+     <div class="icons">${bd.keystones.map(([id,c])=>fig(runeImg(id), P(c,bd.n), myKey.has(id))).join('')}
+       <span style="width:12px"></span>${bd.secondary.map(([id,c])=>fig(runeImg(id), P(c,bd.n), mySec.has(id))).join('')}</div>
+     <h3>Feitiços</h3>
+     <div class="icons">${bd.spells.map(([sp,c])=>fig(sp.split('-').map(spellImg).join(''), P(c,bd.n), mySp.has(sp))).join('')}</div>
+     <p class="sub" style="margin:0">Você: ${yk ? `${runeName(yk[0])} (${P(yk[1],cr.length)})` : '—'}${top(mySp) ? ' · feitiços '+top(mySp)[0].split('-').map(k=>DD.spells[k]?.name||k).join(' + ') : ''}</p>`;
+
+  $('bestSub').textContent = `Quem mais jogou ${champ} como ${role} na base ${S.id==='elite' ? 'Top BR' : 'do '+S.name}. Procure o nome deles no op.gg ou em VODs para estudar.`;
+  table('bestTable', [{k:'name', t:'Jogador'}, {k:'games', t:'Jogos'}, {k:'wr', t:'Winrate', f:wrCell}, {k:'kda', t:'KDA', f:r=>fmt(r.kda,2)}],
+    bd.players.map(p=>({...p, wr: pct(p.wins, p.games)})), 'games');
+}
+const all = a => a.every(Boolean);
+
+// ---------- top 1 do servidor ----------
+function renderTop1(rows){
+  const t = BENCH.ELITE?.top1;
+  if (!t){
+    $('top1Sub').textContent = BENCH.ELITE ? 'Clique em "Atualizar bases" para incluir o Top 1 do servidor.' : 'Gere a base Top BR na seção "Você × Seu elo".';
+    $('top1Body').innerHTML = ''; return;
+  }
+  const roles = Object.entries(t.roles).sort((a,b)=>b[1].n-a[1].n);
+  const mine = curRole(rows);
+  const [role, R] = t.roles[mine] ? [mine, t.roles[mine]] : roles[0];
+  $('top1Title').textContent = `Top 1 do ${(BENCH.ELITE.platform||'').toUpperCase()}: ${t.name}`;
+  $('top1Sub').textContent = `${t.lp} PDL · ${t.wins}V ${t.losses}D (${fmt(pct(t.wins, t.wins+t.losses),0)}%) · últimas ${t.games} Solo/Duo · rotas: ${roles.map(([k,v])=>`${k} ${v.n}`).join(', ')}`;
+  const yr = rows.filter(r=>r.role===role);
+  const res = BM.filter(m=>!(m.skip||[]).includes(role) && R.avg[m.k]!=null).map(m=>({...m, top: R.avg[m.k], you: avgOf(yr, m.k)}));
+  $('top1Body').innerHTML =
+    `<div class="icons">${t.champs.map(([c,n,w])=>`<figure>${champImg(c)}${n}j · ${fmt(pct(w,n),0)}%</figure>`).join('')}</div>
+     <h3>${t.name.split('#')[0]} × você como ${role} (${R.n} jogos dele${yr.length ? `, ${yr.length} seus` : ', você não tem jogos nessa rota'})</h3>
+     <table><thead><tr><th>Métrica</th><th>Você</th><th>Top 1</th></tr></thead><tbody>${res.map(r=>{
+       const bad = r.you!=null && (r.higher ? r.you < r.top*0.85 : r.you > r.top*1.15);
+       return `<tr><td>${r.n}</td><td style="color:${bad ? css('--loss') : 'inherit'}">${r.you==null ? '—' : fmt(r.you,r.d)}</td><td>${fmt(r.top,r.d)}</td></tr>`; }).join('')}</tbody></table>`;
 }
 </script>
 </body>

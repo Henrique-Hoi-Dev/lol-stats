@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoL Stats · Partida</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.hero{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.hero .champ{width:72px;height:72px;border-radius:14px;background:var(--surface-2)}
+.hero .big{font-size:22px;font-weight:700}
+.hero .kda{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;margin-left:auto;text-align:right}
+.hero .kda small{display:block;font-size:12px;font-weight:500;color:var(--text-2)}
+.loadout{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.loadout img{width:28px;height:28px;border-radius:6px;background:var(--surface-2)}
+.loadout .sep{width:8px}
+.events{list-style:none;margin:0;padding:0;max-height:380px;overflow:auto;font-size:13px}
+.events li{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--border)}
+.events .t{color:var(--muted);font-variant-numeric:tabular-nums;width:42px;flex:none}
+.events .mine{color:var(--text)} .events .theirs{color:var(--text-2)}
+tr.me td{background:color-mix(in srgb,var(--accent) 12%,transparent);font-weight:600}
+.team-h{font-size:12.5px;font-weight:600;margin:12px 0 4px}
+.build{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.build figure{margin:0;text-align:center;font-size:11.5px;color:var(--text-2)}
+.build img{width:32px;height:32px;border-radius:6px;display:block;margin:0 auto 2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📊 LoL Stats
+    <nav class="nav"><a href="/">Histórico</a><a class="on" href="/partida">Partida</a></nav>
+    <button class="ghost theme" id="themeBtn" type="button">◐ Tema</button></h1>
+
+  <div class="card">
+    <form class="search" id="form">
+      <label>Riot ID (Nome#TAG)<input name="riotId" placeholder="Nome#BR1" required></label>
+      <label>ID da partida<input name="matchId" placeholder="BR1_3012345678" required style="min-width:200px"></label>
+      <label>Servidor
+        <select name="platform">{% for p in platforms %}<option {% if p=='br1' %}selected{% endif %}>{{p}}</option>{% endfor %}</select>
+      </label>
+      <button id="goBtn">Analisar</button>
+    </form>
+    {% if not has_key %}<div class="warn">⚠️ RIOT_API_KEY não definida.</div>{% endif %}
+    <div class="sub" style="margin:10px 0 0">O ID aparece no histórico do cliente/sites (ex: <code>BR1_3012345678</code>). Pode colar só o número: o servidor selecionado completa o prefixo.</div>
+    <div class="err hidden" id="err"></div>
+    <div class="progress hidden" id="prog"><div style="width:30%"></div></div>
+  </div>
+
+  <div id="dash" class="hidden">
+    <div class="card" style="margin-top:14px"><div class="hero" id="hero"></div></div>
+    <div class="kpis" id="kpis" style="margin-top:14px"></div>
+
+    <div class="grid g2">
+      <div class="card">
+        <h2>Ouro minuto a minuto</h2>
+        <p class="sub" id="goldSub"></p>
+        <div class="chart"><canvas id="cGold"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>Fase de rotas e build</h2>
+        <p class="sub" id="laneSub"></p>
+        <div class="kpis mini" id="laneKpis"></div>
+        <h3>Itens completos (ordem de compra)</h3>
+        <div class="build" id="build"></div>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <h2>Abates e mortes no mapa</h2>
+        <p class="sub" id="mapSub"></p>
+        <div class="map" id="map"></div>
+        <div class="legend" id="mapLegend"></div>
+      </div>
+      <div class="card">
+        <h2>Linha do tempo</h2>
+        <p class="sub">Seus abates, mortes e assistências, e os objetivos dos dois times.</p>
+        <ul class="events" id="events"></ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>Destaques da partida</h2>
+      <ul class="insights" id="insights" style="margin-top:8px"></ul>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px"><h2>Você × Seu elo nesta partida</h2><p class="sub" id="benchSub"></p></div>
+        <label>Comparar com<select id="fTier"></select></label>
+        <button class="ghost" id="benchBtn" type="button">Gerar base</button>
+      </div>
+      <div class="progress hidden" id="benchProg"><div></div></div>
+      <div id="benchBody" class="hidden">
+        <ul class="tips" id="benchTips"></ul>
+        <div class="scroll"><table id="benchTable"></table></div>
+        <div class="legend" id="benchLegend"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>Placar</h2>
+      <div class="scroll" style="max-height:none" id="board"></div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='metrics.js') }}"></script>
+<script>
+const root = document.documentElement, $ = id => document.getElementById(id);
+try { const t = localStorage.getItem('theme'); if (t) root.dataset.theme = t; } catch(e){}
+$('themeBtn').onclick = () => {
+  root.dataset.theme = getComputedStyle(root).colorScheme.includes('dark') ? 'light' : 'dark';
+  try { localStorage.setItem('theme', root.dataset.theme); } catch(e){}
+  if (M) render();
+};
+const css = v => getComputedStyle(root).getPropertyValue(v).trim();
+const fmt = (x,d=1) => Number.isFinite(x) ? x.toLocaleString('pt-BR',{maximumFractionDigits:d,minimumFractionDigits:d}) : '—';
+const fmtInt = x => Number.isFinite(x) ? Math.round(x).toLocaleString('pt-BR') : '—';
+const mmss = s => `${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,'0')}`;
+const sg = (v,d=0) => v==null ? '—' : (v>=0?'+':'') + fmt(v,d);
+const pill = (cls, t) => `<span class="pill ${cls}">${t}</span>`;
+
+// ---------- Data Dragon ----------
+let DD = { v: null, runes: {}, spells: {}, items: {} };
+fetch('https://ddragon.leagueoflegends.com/api/versions.json').then(r=>r.json()).then(async vs=>{
+  DD.v = vs[0];
+  const base = `https://ddragon.leagueoflegends.com/cdn/${DD.v}/data/pt_BR`;
+  const [runes, spells, items] = await Promise.all(['runesReforged','summoner','item'].map(f=>fetch(`${base}/${f}.json`).then(r=>r.json())));
+  for (const st of runes){ DD.runes[st.id] = st; for (const sl of st.slots) for (const ru of sl.runes) DD.runes[ru.id] = ru; }
+  for (const sp of Object.values(spells.data)) DD.spells[sp.key] = sp;
+  DD.items = items.data;
+  if (M) render();
+}).catch(()=>{});
+const champImg = (n, cls='') => DD.v && n ? `<img class="${cls}" src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/champion/${n === 'FiddleSticks' ? 'Fiddlesticks' : n}.png" title="${n}" loading="lazy" onerror="this.remove()">` : '';
+const itemImg = id => DD.v && id ? `<img src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/item/${id}.png" title="${DD.items[id]?.name || id}" loading="lazy" onerror="this.remove()">` : '';
+const runeImg = id => DD.runes[id] ? `<img src="https://ddragon.leagueoflegends.com/cdn/img/${DD.runes[id].icon}" title="${DD.runes[id].name}" loading="lazy" onerror="this.remove()">` : '';
+const spellImg = key => DD.v && DD.spells[key] ? `<img src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/spell/${DD.spells[key].id}.png" title="${DD.spells[key].name}" loading="lazy" onerror="this.remove()">` : '';
+
+const charts = {};
+function chart(id, cfg){
+  if (charts[id]) charts[id].destroy();
+  Chart.defaults.color = css('--text-2'); Chart.defaults.borderColor = css('--grid');
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  cfg.options = Object.assign({responsive:true, maintainAspectRatio:false, animation:false,
+    interaction:{mode:'index', intersect:false},
+    plugins:{legend:{display:true, position:'top', align:'end', labels:{boxWidth:10}},
+      tooltip:{backgroundColor:css('--surface'), titleColor:css('--text'), bodyColor:css('--text-2'), borderColor:css('--border'), borderWidth:1, padding:10}}}, cfg.options||{});
+  charts[id] = new Chart($(id), cfg);
+}
+
+// ---------- busca ----------
+let M = null, BENCH = {};
+const form = $('form');
+const qs = new URLSearchParams(location.search);
+for (const k of ['riotId','matchId','platform']) if (qs.get(k)) form.elements[k].value = qs.get(k);
+try { if (!form.elements.riotId.value) form.elements.riotId.value = localStorage.getItem('riotId') || ''; } catch(e){}
+
+form.onsubmit = async e => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(form));
+  $('err').classList.add('hidden'); $('goBtn').disabled = true; $('prog').classList.remove('hidden');
+  try {
+    const r = await fetch('/api/match', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.message || r.statusText);
+    M = j; BENCH = {};
+    try { localStorage.setItem('riotId', body.riotId); } catch(e){}
+    history.replaceState(null, '', `?riotId=${encodeURIComponent(body.riotId)}&matchId=${M.matchId}`);
+    $('dash').classList.remove('hidden');
+    setupTier(); render(); loadBench();
+  } catch(err){ $('err').textContent = err.message; $('err').classList.remove('hidden'); }
+  finally { $('goBtn').disabled = false; $('prog').classList.add('hidden'); }
+};
+if (qs.get('riotId') && qs.get('matchId')) form.requestSubmit();
+
+// ---------- render ----------
+function render(){
+  const me = M.me, players = M.players, mins = me.duration/60;
+  const opp = players.find(p=>p.puuid===me.oppPuuid);
+  const team = players.filter(p=>p.teamId===me.teamId);
+
+  $('hero').innerHTML = `${champImg(me.champion, 'champ')}
+    <div>
+      <div class="big">${me.champion} ${pill(me.remake ? 'n' : me.win ? 'w' : 'l', me.remake ? 'Remake' : me.win ? 'Vitória' : 'Derrota')}</div>
+      <div class="sub" style="margin:2px 0 0">${M.account.gameName}#${M.account.tagLine} · ${me.role}${opp ? ` contra <b>${opp.champion}</b>` : ''} · ${me.queue} · ${mmss(me.duration)} ·
+        ${new Date(me.ts).toLocaleString('pt-BR',{dateStyle:'short', timeStyle:'short'})} · patch ${me.patch} · lado ${me.side}</div>
+      <div class="loadout">${spellImg(me.spells[0])}${spellImg(me.spells[1])}<span class="sep"></span>${runeImg(me.keystone)}${runeImg(me.runeSecondary)}<span class="sep"></span>${me.items.map(itemImg).join('')}</div>
+    </div>
+    <div class="kda">${me.kills} / ${me.deaths} / ${me.assists}<small>KDA ${fmt(me.kda,2)} · ${fmt(me.kp,0)}% de participação</small></div>`;
+
+  const rank = k => 1 + team.filter(p=>p[k] > me[k]).length;
+  const K = [
+    ['CS', fmtInt(me.cs), `${fmt(me.csMin,1)}/min`],
+    ['Ouro', fmtInt(me.gold), `${fmtInt(me.goldMin)}/min · ${rank('gold')}º do time`],
+    ['Dano a campeões', fmtInt(me.dmg), `${fmt(me.dmgShare,0)}% do time · ${rank('dmg')}º`],
+    ['Dano recebido', fmtInt(me.dmgTaken), `${rank('dmgTaken')}º do time`],
+    ['Visão', fmtInt(me.vision), `${fmt(me.visionMin,2)}/min · ${me.controlWards} controle`],
+    ['Tempo morto', mmss(me.timeDead), `${fmt(me.timeDead/me.duration*100,0)}% do jogo`],
+    ['Ouro vs oponente', sg(me.goldDiffOpp), opp ? `fim de jogo · ${opp.champion}` : 'sem oponente direto'],
+  ];
+  $('kpis').innerHTML = K.map(([l,v,d])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
+
+  renderGold(me, opp); renderLane(me, opp); renderMap(); renderEvents(); renderInsights(me, opp, team); renderBoard(); renderBench();
+}
+
+function renderGold(me, opp){
+  const c = M.curve, last = c[c.length-1] || {};
+  const maxLead = Math.max(0, ...c.map(p=>p.teamDiff)), maxDef = Math.min(0, ...c.map(p=>p.teamDiff));
+  $('goldSub').textContent = `Maior vantagem do seu time: ${fmtInt(maxLead)} · maior desvantagem: ${fmtInt(maxDef)}` + (opp ? ` · você ${sg(last.me-last.opp)} contra ${opp.champion} no fim` : '');
+  const ds = [{label:'Diferença do time', data:c.map(p=>p.teamDiff), type:'bar', yAxisID:'y2',
+               backgroundColor:c.map(p=>p.teamDiff>=0 ? css('--win')+'55' : css('--loss')+'55'), order:3}];
+  if (opp) ds.unshift({label:`Você − ${opp.champion}`, data:c.map(p=>p.me-p.opp), borderColor:css('--s2'), backgroundColor:css('--s2'), pointRadius:0, borderWidth:2, tension:.25, yAxisID:'y2', order:1});
+  chart('cGold', {type:'line', data:{labels:c.map(p=>p.m), datasets:ds},
+    options:{scales:{x:{grid:{display:false}, title:{display:true, text:'minuto'}},
+      y2:{position:'left', title:{display:true, text:'diferença de ouro'}}},
+      plugins:{tooltip:{callbacks:{title:t=>`${t[0].label} min`, label:c=>` ${c.dataset.label}: ${sg(c.parsed.y)}`}}}}});
+}
+
+function renderLane(me, opp){
+  if (!opp){ $('laneSub').textContent = 'Sem oponente direto na mesma rota.'; $('laneKpis').innerHTML = ''; }
+  else {
+    $('laneSub').textContent = `Diferenças contra ${opp.champion}.`;
+    const fi = me.firstItem!=null && me.oppFirstItem!=null ? me.firstItem - me.oppFirstItem : null;
+    const L = [['Ouro aos 10', sg(me.gd10)], ['Ouro aos 15', sg(me.gd15)], ['CS aos 10', sg(me.csd10)], ['CS aos 15', sg(me.csd15)],
+      ['XP aos 10', sg(me.xpd10)], ['1º item', me.firstItem!=null ? mmss(me.firstItem) : '—', fi!=null ? `${fi>0?'+':''}${fi}s vs oponente` : '']];
+    $('laneKpis').innerHTML = L.map(([l,v,d])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>${d ? `<div class="d">${d}</div>` : ''}</div>`).join('');
+  }
+  $('build').innerHTML = M.build.map(([t,id])=>`<figure>${itemImg(id)}${mmss(t)}</figure>`).join('') || '<span class="sub">Nenhum item completo.</span>';
+}
+
+const KIND = {KILL:['--win','Abate'], ASSIST:['--s3','Assistência'], DEATH:['--loss','Morte']};
+function renderMap(){
+  const ev = M.events.filter(e=>KIND[e.kind]);
+  const n = k => ev.filter(e=>e.kind===k).length;
+  $('mapSub').textContent = `${n('KILL')} abates · ${n('ASSIST')} assistências · ${n('DEATH')} mortes. Passe o mouse para ver o minuto.`;
+  $('map').innerHTML = (DD.v ? `<img src="https://ddragon.leagueoflegends.com/cdn/${DD.v}/img/map/map11.png" alt="">` : '') +
+    `<svg viewBox="0 0 100 100">${ev.map(e=>`<circle cx="${(e.x/14870*100).toFixed(1)}" cy="${(100-e.y/14980*100).toFixed(1)}" r="${e.kind==='DEATH'?2.2:1.7}" fill="${css(KIND[e.kind][0])}" fill-opacity=".85" stroke="#000" stroke-opacity=".5" stroke-width=".3"><title>${mmss(e.t)} · ${KIND[e.kind][1]}${e.vs ? ' — '+e.vs : ''}</title></circle>`).join('')}</svg>`;
+  $('mapLegend').innerHTML = Object.values(KIND).map(([c,l])=>`<span><i style="background:${css(c)};border-radius:50%"></i>${l}</span>`).join('');
+}
+
+const OBJ = {DRAGON:'🐉 Dragão', BARON_NASHOR:'🟣 Barão', RIFTHERALD:'🦀 Arauto', HORDE:'🪲 Larvas do Vazio', ATAKHAN:'👹 Atakhan',
+  TOWER_BUILDING:'🗼 Torre', INHIBITOR_BUILDING:'🏰 Inibidor'};
+const DRAKE = {FIRE_DRAGON:'Infernal', WATER_DRAGON:'Oceano', EARTH_DRAGON:'Montanha', AIR_DRAGON:'Nuvens', HEXTECH_DRAGON:'Hextec', CHEMTECH_DRAGON:'Quimtec', ELDER_DRAGON:'Ancião'};
+function renderEvents(){
+  $('events').innerHTML = M.events.map(e=>{
+    let txt;
+    if (e.kind==='KILL') txt = `⚔️ Você abateu <b>${e.vs||'?'}</b>`;
+    else if (e.kind==='DEATH') txt = `💀 Você morreu para <b>${e.vs||'?'}</b>`;
+    else if (e.kind==='ASSIST') txt = `🤝 Assistência no abate de ${e.vs||'?'}`;
+    else txt = `${OBJ[e.kind] || e.kind}${e.kind==='DRAGON' && DRAKE[e.sub] ? ' '+DRAKE[e.sub] : ''} · ${e.mine ? '<b>seu time</b>' : 'inimigo'}`;
+    return `<li class="${e.mine || KIND[e.kind] ? 'mine' : 'theirs'}"><span class="t">${mmss(e.t)}</span><span>${txt}</span></li>`;
+  }).join('');
+}
+
+function renderInsights(me, opp, team){
+  const ins = [], ev = M.events, c = M.curve;
+  const deaths = ev.filter(e=>e.kind==='DEATH');
+  const early = deaths.filter(e=>e.t < 840);
+  if (early.length >= 2) ins.push(`💀 <b>${early.length}</b> mortes antes dos 14 min (${early.map(e=>mmss(e.t)).join(', ')}). Mortes cedo custam farm, placas e dragões.`);
+  const half = deaths.filter(d=> me.side==='Azul' ? d.x + d.y > 15000 : d.x + d.y < 15000);
+  if (deaths.length >= 3 && half.length/deaths.length > .6) ins.push(`🗺️ <b>${half.length} de ${deaths.length}</b> mortes foram na metade inimiga do mapa. Avance só com visão.`);
+  // objetivo perdido logo depois de uma morte sua
+  const punish = deaths.map(d=>ev.find(o=>!o.mine && OBJ[o.kind] && o.t>d.t && o.t-d.t<=60)).filter(Boolean);
+  if (punish.length) ins.push(`⏱️ Em <b>${punish.length}</b> ${punish.length>1?'vezes':'vez'} o inimigo pegou um objetivo até 60s depois da sua morte (${punish.map(o=>`${OBJ[o.kind].split(' ').slice(1).join(' ')} ${mmss(o.t)}`).join(', ')}).`);
+  if (opp && me.gd15!=null){
+    if (me.gd15 > 500) ins.push(`✅ Você ganhou a rota: <b>${sg(me.gd15)}</b> de ouro contra ${opp.champion} aos 15 min${me.win ? '.' : ', mas a vantagem não virou vitória: pressione torres e objetivos depois de ganhar a rota.'}`);
+    else if (me.gd15 < -500) ins.push(`📉 Você saiu da rota <b>${fmtInt(-me.gd15)}</b> de ouro atrás de ${opp.champion} aos 15 min (CS ${sg(me.csd15)}).`);
+  }
+  const maxLead = Math.max(0, ...c.map(p=>p.teamDiff)), maxDef = Math.min(0, ...c.map(p=>p.teamDiff));
+  if (!me.win && maxLead > 3000) ins.push(`🔄 Seu time chegou a ter <b>${fmtInt(maxLead)}</b> de ouro de vantagem e perdeu. Depois de abrir vantagem, jogue em torno de Barão/dragões com visão em vez de lutas soltas.`);
+  if (me.win && maxDef < -3000) ins.push(`💪 Virada: seu time esteve <b>${fmtInt(-maxDef)}</b> de ouro atrás e venceu.`);
+  const top = k => team.every(p=>p[k] <= me[k]);
+  if (top('dmg')) ins.push(`🔥 Maior dano do time (<b>${fmt(me.dmgShare,0)}%</b>).`);
+  if (top('vision')) ins.push(`👁️ Maior placar de visão do time (${me.vision}).`);
+  if (me.controlWards === 0 && me.duration > 900) ins.push(`🟣 Nenhuma sentinela de controle comprada. Uma por volta à base já muda o controle de visão.`);
+  if (me.timeDead/me.duration > .15) ins.push(`⌛ Você passou <b>${fmt(me.timeDead/me.duration*100,0)}%</b> da partida morto (${mmss(me.timeDead)}).`);
+  $('insights').innerHTML = ins.map(i=>`<li>${i}</li>`).join('') || '<li>Nada fora do comum nesta partida.</li>';
+}
+
+function renderBoard(){
+  const cols = [['Jogador',null],['KDA',p=>`${p.kills}/${p.deaths}/${p.assists}`],['CS',p=>p.cs],['Ouro',p=>fmtInt(p.gold)],
+    ['Dano',p=>fmtInt(p.dmg)],['% dano',p=>fmt(p.dmgShare,0)+'%'],['Visão',p=>p.vision],['Itens',p=>`<span class="items">${p.items.map(itemImg).join('')}</span>`]];
+  $('board').innerHTML = M.teams.map(t=>{
+    const ps = M.players.filter(p=>p.teamId===t.teamId);
+    const o = t.objectives;
+    return `<div class="team-h">${t.teamId===100?'🔵 Time azul':'🔴 Time vermelho'} ${pill(t.win?'w':'l', t.win?'Vitória':'Derrota')}
+      <span style="color:var(--muted);font-weight:500">· ${o.champion||0} abates · ${o.tower||0} torres · ${o.dragon||0} dragões · ${o.baron||0} barões</span></div>
+      <table><tr>${cols.map(([h])=>`<th>${h}</th>`).join('')}</tr>${ps.map(p=>`<tr class="${p.puuid===M.me.puuid?'me':''}">
+        <td>${champImg(p.champion)}${p.name} <span style="color:var(--muted)">${p.role}</span></td>${cols.slice(1).map(([,f])=>`<td>${f(p)}</td>`).join('')}</tr>`).join('')}</table>`;
+  }).join('');
+}
+
+// ---------- comparação com as bases de referência ----------
+function setupTier(){
+  const lg = M.league || [];
+  const solo = lg.find(l=>l.queueType==='RANKED_SOLO_5x5') || lg.find(l=>l.queueType==='RANKED_FLEX_SR');
+  $('fTier').innerHTML = [...TIERS, 'ELITE'].map(t=>`<option value="${t}">${TIER_PT[t]}</option>`).join('');
+  $('fTier').value = solo && TIERS.includes(solo.tier) ? solo.tier : 'GOLD';
+  $('fTier').onchange = loadBench;
+}
+async function loadBench(){
+  const t = $('fTier').value;
+  try { const r = await fetch(`/api/benchmark?platform=${M.platform}&tiers=${t},ELITE`); if (r.ok) Object.assign(BENCH, await r.json()); } catch(e){}
+  renderBench();
+}
+$('benchBtn').onclick = async () => {
+  const tier = $('fTier').value;
+  $('benchBtn').disabled = true; $('benchProg').classList.remove('hidden');
+  const r = await fetch('/api/benchmark/build', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({platform: M.platform, tiers:[tier]})});
+  const id = (await r.json()).jobId;
+  const tick = async () => {
+    const j = await (await fetch(`/api/job/${id}`)).json();
+    $('benchSub').textContent = j.message + (j.total ? ` — ${j.progress}/${j.total}` : '') + ' (~5 min com a chave de desenvolvedor)';
+    $('benchProg').firstElementChild.style.width = j.total ? (100*j.progress/j.total)+'%' : '5%';
+    if (j.status === 'running') return setTimeout(tick, 1000);
+    $('benchBtn').disabled = false; $('benchProg').classList.add('hidden');
+    if (j.status === 'error') { $('benchSub').textContent = j.message; return; }
+    Object.assign(BENCH, j.result); renderBench();
+  };
+  tick();
+};
+
+function renderBench(){
+  const me = M.me, tier = $('fTier').value, B = BENCH[tier], E = tier !== 'ELITE' ? BENCH.ELITE : null;
+  $('benchBtn').textContent = B ? 'Atualizar base' : `Gerar base: ${TIER_PT[tier]}`;
+  if (me.remake || me.role === '—'){ $('benchBody').classList.add('hidden'); $('benchSub').textContent = 'Partida sem rota definida (remake ou modo sem rotas): sem comparação.'; return; }
+  if (!B){ $('benchBody').classList.add('hidden'); $('benchSub').textContent = `Ainda não existe base do ${TIER_PT[tier]} neste servidor. Clique em "Gerar base" (~5 min, uma vez só).`; return; }
+  const key = `${me.role}|${me.champion}`, ref = B.champs[key] || B.roles[me.role], eref = E && (E.champs[key] || E.roles[me.role]);
+  if (!ref){ $('benchBody').classList.add('hidden'); $('benchSub').textContent = `A base do ${TIER_PT[tier]} não tem jogos como ${me.role}.`; return; }
+  $('benchBody').classList.remove('hidden');
+  $('benchSub').innerHTML = `Seus números nesta partida contra a faixa normal (25%–75%) de ${fmtInt(ref.n)} jogos do <b>${TIER_PT[tier]}</b> como ${me.role}${B.champs[key] ? ' de '+me.champion : ''}. Lembre: uma partida só varia muito.`;
+
+  const res = BM.filter(m=>!(m.skip||[]).includes(me.role) && ref.metrics[m.k] && me[m.k]!=null).map(m=>{
+    const p = ref.metrics[m.k], dir = m.higher ? 1 : -1;
+    const z = (me[m.k]-p[1]) / Math.max(p[2]-p[0], Math.abs(p[1])*0.1, 0.01) * dir;
+    const lvl = (m.higher ? me[m.k] > p[2] : me[m.k] < p[0]) ? 'w' : (m.higher ? me[m.k] < p[0] : me[m.k] > p[2]) ? 'l' : 'n';
+    return {...m, you: me[m.k], p, e: eref?.metrics[m.k], z, lvl};
+  }).sort((a,b)=>a.z-b.z);
+
+  const weak = res.filter(r=>r.lvl==='l').slice(0,4), strong = res.filter(r=>r.lvl==='w').reverse().slice(0,3);
+  const who = `a média do ${TIER_PT[tier]}`;
+  $('benchTips').innerHTML = weak.map(r=>`<li>${r.tip(fmt(r.you,r.d), fmt(r.p[1],r.d), who)}</li>`).join('') +
+    (strong.length ? `<li class="good">✅ Acima do ${TIER_PT[tier]}: ${strong.map(r=>`<b>${r.n}</b> (${fmt(r.you,r.d)})`).join(', ')}.</li>` : '') ||
+    `<li>Partida dentro da faixa normal do ${TIER_PT[tier]} em todas as métricas.</li>`;
+
+  const LV = {w:['w','Acima'], n:['n','Na média'], l:['l','Abaixo']};
+  $('benchTable').innerHTML = `<tr><th>Métrica</th><th>Você</th><th>${TIER_PT[tier]} (mediana)</th>${eref ? '<th>Top BR</th>' : ''}<th></th><th></th></tr>` +
+    res.map(r=>{
+      const meds = [r.p[1], r.e?.[1]].filter(v=>v!=null);
+      const lo = Math.min(r.you, r.p[0], ...meds), hi = Math.max(r.you, r.p[2], ...meds), pad = (hi-lo)*0.08 || 1;
+      const x = v => `${((v-lo+pad)/((hi-lo+2*pad))*100).toFixed(1)}%`;
+      const bar = `<span class="cmp"><span class="band" style="left:${x(r.p[0])};right:calc(100% - ${x(r.p[2])})"></span>` +
+        `<span class="med" style="left:${x(r.p[1])};background:${css('--muted')}"></span>` +
+        (r.e ? `<span class="med" style="left:${x(r.e[1])};background:${css('--s1')}"></span>` : '') +
+        `<span class="you" style="left:${x(r.you)};background:${r.lvl==='l' ? css('--loss') : css('--win')}"></span></span>`;
+      return `<tr><td>${r.n}</td><td><b>${fmt(r.you,r.d)}</b></td><td>${fmt(r.p[1],r.d)}</td>${eref ? `<td>${r.e ? fmt(r.e[1],r.d) : '—'}</td>` : ''}<td>${bar}</td><td>${pill(...LV[r.lvl])}</td></tr>`;
+    }).join('');
+  $('benchLegend').innerHTML = `<span><i style="background:${css('--win')};border-radius:50%"></i>Você</span><span><i style="background:${css('--muted')}"></i>Mediana ${TIER_PT[tier]}</span>` +
+    (eref ? `<span><i style="background:${css('--s1')}"></i>Top BR</span>` : '') + `<span><i style="background:color-mix(in srgb,var(--muted) 35%,transparent)"></i>Faixa normal (25%–75%)</span>`;
+}
+</script>
+</body>
+</html>

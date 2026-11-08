@@ -24,14 +24,14 @@ if _env.exists():
 from flask import Flask, Response, jsonify, render_template, request
 
 import benchmark
-from analysis import flatten_match, to_csv
-from riot import PLATFORMS, RiotClient, RiotError
+from analysis import flatten_match, match_detail, merge_timeline, to_csv
+from riot import PLATFORMS, RiotClient, RiotError, completed_items
 
 app = Flask(__name__)
 JOBS: dict[str, dict] = {}
 
 
-def run_job(job_id: str, riot_id: str, platform: str, count: int, queue: int | None):
+def run_job(job_id: str, riot_id: str, platform: str, count: int, queue: int | None, timeline: bool = True):
     job = JOBS[job_id]
     try:
         if "#" not in riot_id:
@@ -59,13 +59,21 @@ def run_job(job_id: str, riot_id: str, platform: str, count: int, queue: int | N
         job["total"] = len(ids)
 
         rows = []
-        cached = [i for i in ids if client.is_cached(i)]
-        missing = [i for i in ids if not client.is_cached(i)]
-        job["message"] = f"Baixando partidas ({len(cached)} já em cache)..."
+        done = lambda i: client.is_cached(i) and (not timeline or client.is_timeline_cached(i))  # noqa: E731
+        cached = [i for i in ids if done(i)]
+        missing = [i for i in ids if not done(i)]
+        job["message"] = f"Baixando partidas{' e linhas do tempo' if timeline else ''} ({len(cached)} já em cache)..."
 
         def fetch(mid):
             try:
-                return flatten_match(client.match(mid), puuid)
+                match = client.match(mid)
+                row = flatten_match(match, puuid)
+                if row and timeline and not row["remake"]:
+                    try:
+                        merge_timeline(row, client.timeline(mid, match), puuid)
+                    except RiotError:
+                        pass
+                return row
             except RiotError:
                 return None
             finally:
@@ -85,6 +93,7 @@ def run_job(job_id: str, riot_id: str, platform: str, count: int, queue: int | N
             "mastery": mastery,
             "platform": platform,
             "matches": rows,
+            "completedItems": sorted(completed_items()),
         }
         job["status"] = "done"
         job["message"] = f"{len(rows)} partidas carregadas"
@@ -101,6 +110,47 @@ def index():
                            has_key=bool(os.environ.get("RIOT_API_KEY")))
 
 
+@app.get("/partida")
+def partida():
+    return render_template("match.html", platforms=list(PLATFORMS),
+                           has_key=bool(os.environ.get("RIOT_API_KEY")))
+
+
+@app.post("/api/match")
+def api_match():
+    """{riotId, matchId, platform} -> análise de uma partida do ponto de vista do jogador.
+    matchId aceita "BR1_123..." (o prefixo define o servidor) ou só o número."""
+    body = request.get_json(force=True) or {}
+    riot_id, match_id = body.get("riotId", "").strip(), body.get("matchId", "").strip().upper()
+    platform = body.get("platform", "br1").lower()
+    try:
+        if "#" not in riot_id:
+            raise RiotError(400, "Use o formato Nome#TAG (ex: Faker#KR1)")
+        if "_" in match_id:
+            platform = match_id.split("_", 1)[0].lower()
+        elif match_id.isdigit():
+            match_id = f"{platform.upper()}_{match_id}"
+        else:
+            raise RiotError(400, "ID da partida inválido (ex: BR1_3012345678)")
+        client = RiotClient(platform=platform)
+        name, tag = riot_id.rsplit("#", 1)
+        account = client.account_by_riot_id(name.strip(), tag.strip())
+        match = client.match(match_id)
+        if not any(p.get("puuid") == account["puuid"] for p in match["info"]["participants"]):
+            raise RiotError(404, f"{account['gameName']}#{account['tagLine']} não jogou a partida {match_id}")
+        try:
+            league = client.league_entries(account["puuid"])
+        except RiotError:
+            league = []
+        detail = match_detail(match, client.timeline_raw(match_id), account["puuid"], completed_items())
+        return jsonify({"account": account, "league": league, "platform": platform, "matchId": match_id, **detail})
+    except RiotError as e:
+        return jsonify({"message": str(e)}), e.status if 400 <= e.status < 600 else 500
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        return jsonify({"message": f"Erro inesperado: {e}"}), 500
+
+
 @app.post("/api/fetch")
 def api_fetch():
     body = request.get_json(force=True)
@@ -109,7 +159,8 @@ def api_fetch():
     job_id = uuid.uuid4().hex[:10]
     JOBS[job_id] = {"status": "running", "progress": 0, "total": 0, "message": "Iniciando..."}
     threading.Thread(target=run_job, daemon=True,
-                     args=(job_id, body.get("riotId", ""), body.get("platform", "br1"), count, queue)).start()
+                     args=(job_id, body.get("riotId", ""), body.get("platform", "br1"), count, queue,
+                           bool(body.get("timeline")))).start()
     return jsonify({"jobId": job_id})
 
 
@@ -124,12 +175,15 @@ def api_job(job_id):
     return jsonify(out)
 
 
-def run_benchmark(job_id: str, platform: str):
+def run_benchmark(job_id: str, platform: str, tiers: list[str]):
+    """Gera as bases em sequência (um só rate limiter de cada vez)."""
     job = JOBS[job_id]
     try:
-        data = benchmark.build(platform, job=job)
-        job["result"], job["status"] = data, "done"
-        job["message"] = f"Referência pronta: {data['games']} jogos de {data['matches']} partidas"
+        result = {}
+        for i, tier in enumerate(tiers, 1):
+            result[tier] = benchmark.build(platform, tier, job=job, label=f"{i}/{len(tiers)} {tier}")
+        job["result"], job["status"] = result, "done"
+        job["message"] = "Referências prontas: " + ", ".join(f"{t} ({d['games']} jogos)" for t, d in result.items())
     except RiotError as e:
         job["status"], job["message"] = "error", str(e)
     except Exception as e:  # noqa: BLE001
@@ -139,13 +193,19 @@ def run_benchmark(job_id: str, platform: str):
 
 @app.get("/api/benchmark")
 def api_benchmark():
-    data = benchmark.load(request.args.get("platform", "br1"))
-    return jsonify(data) if data else (jsonify({"message": "Referência ainda não gerada"}), 404)
+    """?platform=br1&tiers=ELITE,GOLD,PLATINUM -> {tier: base ou null}"""
+    platform = request.args.get("platform", "br1")
+    tiers = [t for t in request.args.get("tiers", benchmark.ELITE).upper().split(",") if benchmark.valid_tier(t)]
+    return jsonify({t: benchmark.load(platform, t) for t in tiers})
 
 
 @app.post("/api/benchmark/build")
 def api_benchmark_build():
-    platform = (request.get_json(force=True) or {}).get("platform", "br1")
+    body = request.get_json(force=True) or {}
+    platform = body.get("platform", "br1")
+    tiers = [t.upper() for t in body.get("tiers", [benchmark.ELITE]) if benchmark.valid_tier(t.upper())]
+    if not tiers:
+        return jsonify({"message": "Nenhum elo válido"}), 400
     running = next((k for k, j in JOBS.items()
                     if j.get("kind") == "bench" and j.get("platform") == platform and j["status"] == "running"), None)
     if running:
@@ -153,7 +213,7 @@ def api_benchmark_build():
     job_id = uuid.uuid4().hex[:10]
     JOBS[job_id] = {"status": "running", "progress": 0, "total": 0, "message": "Iniciando...",
                     "kind": "bench", "platform": platform}
-    threading.Thread(target=run_benchmark, daemon=True, args=(job_id, platform)).start()
+    threading.Thread(target=run_benchmark, daemon=True, args=(job_id, platform, tiers)).start()
     return jsonify({"jobId": job_id})
 
 
@@ -168,4 +228,5 @@ def api_csv(job_id):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", 5000)), debug=False)
+    # debug: recarrega sozinho ao salvar .py e templates (só escuta em localhost)
+    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", 5000)), debug=True)

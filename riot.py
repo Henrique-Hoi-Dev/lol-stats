@@ -99,6 +99,9 @@ class RiotClient:
         return self._get(self.region,
                          f"/riot/account/v1/accounts/by-riot-id/{requests.utils.quote(game_name)}/{requests.utils.quote(tag_line)}")
 
+    def account_by_puuid(self, puuid: str):
+        return self._get(self.region, f"/riot/account/v1/accounts/by-puuid/{puuid}")
+
     def summoner_by_puuid(self, puuid: str):
         return self._get(self.platform, f"/lol/summoner/v4/summoners/by-puuid/{puuid}")
 
@@ -113,6 +116,10 @@ class RiotClient:
     def apex_league(self, tier: str, queue: str = "RANKED_SOLO_5x5"):
         """tier: challenger | grandmaster | master"""
         return self._get(self.platform, f"/lol/league/v4/{tier}leagues/by-queue/{queue}")
+
+    def league_division(self, tier: str, division: str, page: int = 1, queue: str = "RANKED_SOLO_5x5"):
+        """Jogadores de um elo/divisão (ex: GOLD, II). Até 205 por página."""
+        return self._get(self.platform, f"/lol/league/v4/entries/{queue}/{tier}/{division}", {"page": page})
 
     def match_ids(self, puuid: str, count: int = 100, queue: int | None = None):
         """Pagina de 100 em 100 até `count`."""
@@ -139,5 +146,51 @@ class RiotClient:
         f.write_text(json.dumps(data))
         return data
 
+    def timeline_raw(self, match_id: str) -> dict:
+        """Linha do tempo completa (~1 MB, sem cache): usada na análise de uma partida só."""
+        return self._get(self.region, f"/lol/match/v5/matches/{match_id}/timeline")
+
+    def timeline(self, match_id: str, match: dict) -> dict:
+        """Resumo da linha do tempo (ver analysis.timeline_summary). O JSON bruto tem ~1 MB,
+        então só o resumo vai para o cache."""
+        from analysis import timeline_summary
+        f = CACHE_DIR / "timelines" / f"{match_id}.json"
+        if f.exists():
+            return json.loads(f.read_text())
+        raw = self._get(self.region, f"/lol/match/v5/matches/{match_id}/timeline")
+        data = timeline_summary(match, raw, completed_items())
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(data))
+        return data
+
+    def is_timeline_cached(self, match_id: str) -> bool:
+        return (CACHE_DIR / "timelines" / f"{match_id}.json").exists()
+
     def is_cached(self, match_id: str) -> bool:
         return (CACHE_DIR / "matches" / f"{match_id}.json").exists()
+
+
+_ITEMS_LOCK = threading.Lock()
+_ITEMS: set[int] | None = None
+
+
+def completed_items() -> set[int]:
+    """IDs de itens completos (lendários) de Summoner's Rift, via Data Dragon.
+    Critério: custo total >= 2000, sem upgrade ('into'), à venda na loja, sem botas."""
+    global _ITEMS
+    with _ITEMS_LOCK:
+        if _ITEMS is not None:
+            return _ITEMS
+        f = CACHE_DIR / "items_completed.json"
+        try:
+            ver = requests.get("https://ddragon.leagueoflegends.com/api/versions.json", timeout=10).json()[0]
+            data = requests.get(f"https://ddragon.leagueoflegends.com/cdn/{ver}/data/en_US/item.json", timeout=20).json()["data"]
+            _ITEMS = {int(k) for k, it in data.items()
+                      if it.get("gold", {}).get("total", 0) >= 2000 and not it.get("into")
+                      and it.get("gold", {}).get("purchasable") and it.get("inStore", True)
+                      and it.get("maps", {}).get("11") and "Boots" not in it.get("tags", [])
+                      and not it.get("requiredAlly")}
+            f.write_text(json.dumps(sorted(_ITEMS)))
+        except Exception:  # noqa: BLE001 - sem internet: usa a última lista salva
+            _ITEMS = set(json.loads(f.read_text())) if f.exists() else set()
+        return _ITEMS
